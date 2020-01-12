@@ -1,8 +1,10 @@
 import argparse
 import os
 
+import numpy as np
 import torch
 import torch.nn as nn
+import torch.optim as optim
 from torchvision import datasets, transforms
 
 from deep_cloost.model import Encoder
@@ -41,6 +43,10 @@ def main():
         biases = initialize_biases(model, samples, batch=args.batch)
         model.add_stage(OutputLayer(args.options), biases)
         print('Evaluating new encoder...')
+        evaluate_model(test_loader, model)
+        print('Tuning encoder...')
+        tune_model(args, train_loader, model)
+        print('Evaluating tuned encoder...')
         evaluate_model(test_loader, model)
 
         save_checkpoint(args, model)
@@ -87,6 +93,20 @@ def evaluate_model(loader, model):
     print('Mean evaluation loss: %f' % (loss/count,))
 
 
+def tune_model(args, loader, model):
+    optimizer = optim.Adam(model.parameters(), lr=args.tune_lr)
+    for i in range(args.tune_epochs):
+        losses = []
+        for inputs, _ in loader:
+            recons = model.reconstruct(inputs)
+            loss = model.loss_fn(recons, inputs)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            losses.append(loss.item())
+        print('Mean loss at tune epoch %d: %f' % (i, np.mean(losses)))
+
+
 def create_or_load_model(args):
     if os.path.exists(args.checkpoint):
         print('Loading encoder model from checkpoint...')
@@ -120,6 +140,10 @@ def arg_parser():
     parser.add_argument('--options', default=8, type=int)
     parser.add_argument('--init-samples', default=10000, type=int)
     parser.add_argument('--checkpoint', default='mnist_model.pt', type=str)
+
+    parser.add_argument('--tune-epochs', default=1, type=int)
+    parser.add_argument('--tune-lr', default=0.001, type=float)
+
     return parser
 
 
