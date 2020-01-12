@@ -87,7 +87,8 @@ def evaluate_model(loader, model):
     loss = 0.0
     count = 0
     for inputs, _ in loader:
-        outputs = model.reconstruct(inputs.to(DEVICE))
+        inputs = inputs.to(DEVICE)
+        outputs = model.reconstruct(inputs)
         loss += inputs.shape[0] * model.loss_fn(outputs, inputs)
         count += inputs.shape[0]
     print('Mean evaluation loss: %f' % (loss/count,))
