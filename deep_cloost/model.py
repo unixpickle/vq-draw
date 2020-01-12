@@ -32,7 +32,7 @@ class Encoder(nn.Module):
             base_out = self.base(current_outputs)
             layer_out = bias + layer(base_out)
             new_outputs = current_outputs[:, None] + layer_out
-            losses = torch.stack([torch.stack([self.loss_fn(new_outputs[i, j])
+            losses = torch.stack([torch.stack([self.loss_fn(new_outputs[i, j], inputs[i])
                                                for j in range(new_outputs.shape[1])])
                                   for i in range(new_outputs.shape[0])])
             indices = torch.argmin(losses, dim=-1)
