@@ -26,10 +26,10 @@ class Encoder(nn.Module):
         Returns:
           A tuple (encodings, reconstructions)
         """
-        base_out = self.base(inputs)
-        current_outputs = inputs
+        current_outputs = torch.zeros_like(inputs)
         encodings = []
         for i, (layer, bias) in enumerate(zip(self.output_layers, self.output_biases)):
+            base_out = self.base(current_outputs)
             layer_out = bias + layer(base_out)
             new_outputs = current_outputs[:, None] + layer_out
             losses = torch.stack([torch.stack([self.loss_fn(new_outputs[i, j])
@@ -39,3 +39,16 @@ class Encoder(nn.Module):
             encodings.append(indices)
             current_outputs = new_outputs[:, indices]
         return torch.stack(encodings, dim=-1), current_outputs
+
+    def decode(self, codes):
+        current_outputs = torch.zeros((codes.shape[0],) + self.shape, device=self.device)
+        for i, (layer, bias) in enumerate(zip(self.output_layers, self.output_biases)):
+            base_out = self.base(current_outputs)
+            layer_out = bias + layer(base_out)
+            new_outputs = current_outputs[:, None] + layer_out
+            current_outputs = new_outputs[:, codes[i]]
+        return current_outputs
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
