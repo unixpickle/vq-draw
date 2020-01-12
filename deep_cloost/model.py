@@ -49,6 +49,14 @@ class Encoder(nn.Module):
             current_outputs = new_outputs[:, codes[i]]
         return current_outputs
 
+    def reconstruct(self, inputs, batch=None):
+        if batch is None:
+            return self(inputs)[1]
+        results = []
+        for i in range(0, inputs.shape, batch):
+            results.append(self(inputs[i:i+batch])[1])
+        return torch.cat(results, dim=0)
+
     @property
     def device(self):
         return next(self.parameters()).device
