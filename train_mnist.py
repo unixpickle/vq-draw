@@ -41,7 +41,7 @@ def main():
         print('Creating encoder stage %d...' % i)
         samples = gather_samples(train_loader, args.init_samples)
         biases = initialize_biases(model, samples, batch=args.batch)
-        model.add_stage(OutputLayer(args.options), biases)
+        model.add_stage(OutputLayer(args.options).to(DEVICE), biases)
         print('Evaluating new encoder...')
         evaluate_model(test_loader, model)
         print('Tuning encoder...')
