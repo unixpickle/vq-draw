@@ -87,7 +87,7 @@ def evaluate_model(loader, model):
     loss = 0.0
     count = 0
     for inputs, _ in loader:
-        outputs = model.reconstruct(inputs)
+        outputs = model.reconstruct(inputs.to(DEVICE))
         loss += inputs.shape[0] * model.loss_fn(outputs, inputs)
         count += inputs.shape[0]
     print('Mean evaluation loss: %f' % (loss/count,))
@@ -98,6 +98,7 @@ def tune_model(args, loader, model):
     for i in range(args.tune_epochs):
         losses = []
         for inputs, _ in loader:
+            inputs = inputs.to(DEVICE)
             recons = model.reconstruct(inputs)
             loss = model.loss_fn(recons, inputs)
             optimizer.zero_grad()
