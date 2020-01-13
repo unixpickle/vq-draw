@@ -53,8 +53,10 @@ def main():
 
         save_checkpoint(args, model)
         save_renderings(args, test_loader, model)
+        save_samples(args, model)
 
     save_renderings(args, test_loader, model)
+    save_samples(args, model)
 
 
 def create_datasets(batch_size):
@@ -147,6 +149,15 @@ def save_renderings(args, loader, model):
     img = torch.cat([data, recons], dim=-1).view(-1, 28 * 2).cpu().numpy()
     img = np.clip(((img * 0.3081) + 0.1307), 0, 1)
     Image.fromarray((img * 255).astype('uint8')).save('renderings.png')
+
+
+def save_samples(args, model):
+    latents = torch.randint(high=model.options, size=(NUM_RENDERINGS, model.num_stages))
+    with torch.no_grad():
+        data = model.decode(latents)
+    img = data.view(-1, 28).cpu().numpy()
+    img = np.clip(((img * 0.3081) + 0.1307), 0, 1)
+    Image.fromarray((img * 255).astype('uint8')).save('samples.png')
 
 
 def arg_parser():
