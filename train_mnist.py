@@ -154,7 +154,7 @@ def save_renderings(args, loader, model):
 def save_samples(args, model):
     latents = torch.randint(high=model.options, size=(NUM_RENDERINGS, model.num_stages))
     with torch.no_grad():
-        data = model.decode(latents)
+        data = model.decode(latents.to(DEVICE))
     img = data.view(-1, 28).cpu().numpy()
     img = np.clip(((img * 0.3081) + 0.1307), 0, 1)
     Image.fromarray((img * 255).astype('uint8')).save('samples.png')
