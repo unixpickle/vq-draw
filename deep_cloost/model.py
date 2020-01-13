@@ -42,7 +42,7 @@ class Encoder(nn.Module):
         current_outputs = torch.zeros((codes.shape[0],) + self.shape, device=codes.device)
         for i in range(self.num_stages):
             new_outputs = self.apply_stage(i, current_outputs)
-            current_outputs = new_outputs[:, codes[:, i]]
+            current_outputs = new_outputs[range(new_outputs.shape[0]), codes[:, i]]
         return current_outputs
 
     def reconstruct(self, inputs, batch=None):
