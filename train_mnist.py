@@ -1,6 +1,7 @@
 import argparse
 import os
 
+from PIL import Image
 import numpy as np
 import torch
 import torch.nn as nn
@@ -10,6 +11,7 @@ from torchvision import datasets, transforms
 from deep_cloost.model import Encoder
 from deep_cloost.train import initialize_biases
 
+NUM_RENDERINGS = 10
 USE_CUDA = torch.cuda.is_available()
 DEVICE = (torch.device('cuda') if USE_CUDA else torch.device('cpu'))
 
@@ -50,6 +52,9 @@ def main():
         evaluate_model(test_loader, model)
 
         save_checkpoint(args, model)
+        save_renderings(args, test_loader, model)
+
+    save_renderings(args, test_loader, model)
 
 
 def create_datasets(batch_size):
@@ -133,6 +138,15 @@ def save_checkpoint(args, model):
         'encoder': model.state_dict(),
     }
     torch.save(checkpoint, args.checkpoint)
+
+
+def save_renderings(args, loader, model):
+    data = gather_samples(loader, NUM_RENDERINGS)
+    with torch.no_grad():
+        recons = model.reconstruct(data)
+    img = torch.cat([data, recons], dim=-1).view(-1, 28 * 2).cpu().numpy()
+    img = np.clip(((img * 0.3081) + 0.1307), 0, 1)
+    Image.fromarray((img * 255).astype('uint8')).save('renderings.png')
 
 
 def arg_parser():
