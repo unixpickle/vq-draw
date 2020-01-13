@@ -21,9 +21,17 @@ class OutputLayer(nn.Module):
         super().__init__()
         self.num_options = num_options
         self.layers = nn.Sequential(
-            nn.Linear(28 * 28, 32),
+            nn.Conv2d(1, 16, 3, stride=2, padding=1),
             nn.ReLU(),
-            nn.Linear(32, 28 * 28 * num_options),
+            nn.Conv2d(16, 32, 3, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(32, 32, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(32, 16, 3, stride=2, padding=1, output_padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(16, 16, 3, stride=2, padding=1, output_padding=1),
+            nn.ReLU(),
+            nn.Conv2d(16, num_options, 3, padding=1),
         )
         # Don't interfere with the biases by default.
         self.layers[-1].weight.detach().zero_()
@@ -31,7 +39,7 @@ class OutputLayer(nn.Module):
 
     def forward(self, x):
         new_shape = x.shape[:1] + (self.num_options,) + x.shape[1:]
-        return self.layers(x.view(x.shape[0], -1)).view(new_shape)
+        return self.layers(x).view(new_shape)
 
 
 def main():
