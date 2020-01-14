@@ -12,7 +12,7 @@ def initialize_biases(encoder, data, batch=None):
     grads, = torch.autograd.grad(loss, recon)
     grads /= torch.std(grads)
     dense_grads = grads.view(grads.shape[0], -1)
-    clusters, labels = kmeans2(dense_grads.cpu().numpy(), encoder.options, minit='++')
+    clusters, labels = kmeans2(dense_grads.cpu().numpy(), encoder.options, minit='++', iter=30)
 
     biases = -torch.from_numpy(clusters).to(data.device)
     biases = biases.view(-1, *grads.shape[1:])
