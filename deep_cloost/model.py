@@ -22,21 +22,28 @@ class Encoder(nn.Module):
         reconstructions.
 
         Returns:
-          A tuple (encodings, reconstructions)
+          A tuple (encodings, reconstructions, losses):
+            encodings: an [N x num_stages] tensor.
+            reconstructions: a tensor like inputs.
+            losses: an [N x num_stages x options] tensor.
         """
         current_outputs = torch.zeros_like(inputs)
         encodings = []
+        all_losses = []
         for i in range(self.num_stages):
             new_outputs = self.apply_stage(i, current_outputs)
             losses = torch.stack([torch.stack([self.loss_fn(new_outputs[i, j], inputs[i])
                                                for j in range(new_outputs.shape[1])])
                                   for i in range(new_outputs.shape[0])])
+            all_losses.append(losses)
             indices = torch.argmin(losses, dim=1)
             encodings.append(indices)
             current_outputs = new_outputs[range(new_outputs.shape[0]), indices]
         if len(encodings) == 0:
             return torch.zeros((inputs.shape[0], 0), dtype=torch.long), current_outputs
-        return torch.stack(encodings, dim=-1), current_outputs
+        return (torch.stack(encodings, dim=-1),
+                current_outputs,
+                torch.stack(all_losses, dim=1))
 
     def decode(self, codes):
         current_outputs = torch.zeros((codes.shape[0],) + self.shape, device=codes.device)
@@ -52,6 +59,10 @@ class Encoder(nn.Module):
         for i in range(0, inputs.shape[0], batch):
             results.append(self(inputs[i:i+batch])[1])
         return torch.cat(results, dim=0)
+
+    def train_losses(self, inputs):
+        losses = self(inputs)[-1]
+        return torch.mean(torch.min(losses[:, -1], dim=-1)[0]), torch.mean(losses)
 
     def apply_stage(self, idx, x):
         layer = self.output_layers[idx]

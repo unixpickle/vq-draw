@@ -113,15 +113,18 @@ def tune_model(args, loader, model):
     optimizer = optim.Adam(model.parameters(), lr=args.tune_lr)
     for i in range(args.tune_epochs):
         losses = []
+        aux_losses = []
         for inputs, _ in loader:
             inputs = inputs.to(DEVICE)
-            recons = model.reconstruct(inputs)
-            loss = model.loss_fn(recons, inputs)
+            main_loss, aux_loss = model.train_losses(inputs)
+            loss = main_loss + aux_loss * args.tune_aux_coeff
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            losses.append(loss.item())
-        print('Mean loss at tune epoch %d: %f' % (i, np.mean(losses)))
+            losses.append(main_loss.item())
+            aux_losses.append(aux_loss.item())
+        print('Mean loss at tune epoch %d: %f (aux %f)' %
+              (i, np.mean(losses), np.mean(aux_losses)))
 
 
 def create_or_load_model(args):
@@ -178,6 +181,7 @@ def arg_parser():
 
     parser.add_argument('--tune-epochs', default=1, type=int)
     parser.add_argument('--tune-lr', default=0.001, type=float)
+    parser.add_argument('--tune-aux-coeff', default=0.01, type=float)
 
     return parser
 
