@@ -122,7 +122,6 @@ def tune_model(args, loader, model):
             optimizer.step()
             losses.append(main_loss.item())
             aux_losses.append(aux_loss.item())
-            break
         print('[stage %d] * [epoch %d] train loss: %f (aux %f)' %
               (model.num_stages, i, np.mean(losses), np.mean(aux_losses)))
 
