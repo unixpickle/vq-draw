@@ -55,7 +55,8 @@ def main():
         biases = initialize_biases(model, samples, batch=args.batch)
         model.add_stage(OutputLayer(args.options).to(DEVICE), biases)
         print('[stage %d] initial test loss: %f' % (stage, evaluate_model(test_loader, model)))
-        tune_model(args, train_loader, model)
+        if stage != 1:
+            tune_model(args, train_loader, model)
         print('[stage %d] final test loss: %f' % (stage, evaluate_model(test_loader, model)))
 
         save_checkpoint(args, model)
