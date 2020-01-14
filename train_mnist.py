@@ -11,7 +11,9 @@ from torchvision import datasets, transforms
 from deep_cloost.model import Encoder
 from deep_cloost.train import initialize_biases
 
-NUM_RENDERINGS = 10
+RENDER_GRID = 5
+SAMPLE_GRID = 5
+
 USE_CUDA = torch.cuda.is_available()
 DEVICE = (torch.device('cuda') if USE_CUDA else torch.device('cpu'))
 
@@ -154,21 +156,25 @@ def save_checkpoint(args, model):
 
 
 def save_renderings(args, loader, model):
-    data = gather_samples(loader, NUM_RENDERINGS)
+    data = gather_samples(loader, RENDER_GRID ** 2)
     with torch.no_grad():
         recons = model.reconstruct(data)
     img = torch.cat([data, recons], dim=-1).view(-1, 28 * 2).cpu().numpy()
     img = np.clip(((img * 0.3081) + 0.1307), 0, 1)
-    Image.fromarray((img * 255).astype('uint8')).save('renderings.png')
+    img = (img * 255).astype('uint8')
+    grid = np.concatenate(img.reshape([RENDER_GRID, -1, 28 * 2]), axis=-1)
+    Image.fromarray(grid).save('renderings.png')
 
 
 def save_samples(args, model):
-    latents = torch.randint(high=model.options, size=(NUM_RENDERINGS, model.num_stages))
+    latents = torch.randint(high=model.options, size=(SAMPLE_GRID**2, model.num_stages))
     with torch.no_grad():
         data = model.decode(latents.to(DEVICE))
     img = data.view(-1, 28).cpu().numpy()
     img = np.clip(((img * 0.3081) + 0.1307), 0, 1)
-    Image.fromarray((img * 255).astype('uint8')).save('samples.png')
+    img = (img * 255).astype('uint8')
+    grid = np.concatenate(img.reshape([SAMPLE_GRID, -1, 28]), axis=-1)
+    Image.fromarray(grid).save('samples.png')
 
 
 def arg_parser():
