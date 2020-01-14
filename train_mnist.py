@@ -50,16 +50,13 @@ def main():
     model = create_or_load_model(args)
 
     for i in range(model.num_stages, args.latents):
-        print('Creating encoder stage %d...' % i)
+        stage = i + 1
         samples = gather_samples(train_loader, args.init_samples)
         biases = initialize_biases(model, samples, batch=args.batch)
         model.add_stage(OutputLayer(args.options).to(DEVICE), biases)
-        print('Evaluating new encoder...')
-        evaluate_model(test_loader, model)
-        print('Tuning encoder...')
+        print('[stage %d] initial test loss: %f' % (stage, evaluate_model(test_loader, model)))
         tune_model(args, train_loader, model)
-        print('Evaluating tuned encoder...')
-        evaluate_model(test_loader, model)
+        print('[stage %d] final test loss: %f' % (stage, evaluate_model(test_loader, model)))
 
         save_checkpoint(args, model)
         save_renderings(args, test_loader, model)
@@ -108,7 +105,7 @@ def evaluate_model(loader, model):
         outputs = model.reconstruct(inputs)
         loss += inputs.shape[0] * model.loss_fn(outputs, inputs)
         count += inputs.shape[0]
-    print('Mean evaluation loss: %f' % (loss/count,))
+    return loss / count
 
 
 def tune_model(args, loader, model):
@@ -125,16 +122,17 @@ def tune_model(args, loader, model):
             optimizer.step()
             losses.append(main_loss.item())
             aux_losses.append(aux_loss.item())
-        print('Mean loss at tune epoch %d: %f (aux %f)' %
-              (i, np.mean(losses), np.mean(aux_losses)))
+            break
+        print('[stage %d] * [epoch %d] train loss: %f (aux %f)' %
+              (model.num_stages, i, np.mean(losses), np.mean(aux_losses)))
 
 
 def create_or_load_model(args):
     if os.path.exists(args.checkpoint):
-        print('Loading encoder model from checkpoint...')
+        print('=> loading encoder model from checkpoint...')
         return load_checkpoint(args)
     else:
-        print('Creating new encoder model...')
+        print('=> creating new encoder model...')
         return Encoder((1, 28, 28), args.options, lambda x: x, nn.MSELoss())
 
 
