@@ -27,7 +27,7 @@ class OutputLayer(nn.Module):
             nn.ReLU(),
             nn.Conv2d(16, 32, 3, stride=2, padding=1),
             nn.ReLU(),
-            nn.Conv2d(32, 32, 1),
+            nn.Conv2d(32, 32, 3, padding=1),
             nn.ReLU(),
             nn.ConvTranspose2d(32, 16, 3, stride=2, padding=1, output_padding=1),
             nn.ReLU(),
