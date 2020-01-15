@@ -111,6 +111,7 @@ def evaluate_model(loader, model):
 
 def tune_model(args, loader, model):
     optimizer = optim.Adam(model.parameters(), lr=args.tune_lr)
+    last_loss = None
     for i in range(args.tune_epochs):
         losses = []
         aux_losses = []
@@ -123,8 +124,15 @@ def tune_model(args, loader, model):
             optimizer.step()
             losses.append(main_loss.item())
             aux_losses.append(aux_loss.item())
+
+        new_loss = np.mean(losses)
+        if last_loss is not None and new_loss > last_loss:
+            for param_group in optimizer.param_groups:
+                param_group['lr'] *= args.tune_lr_step
+        last_loss = new_loss
+
         print('[stage %d] * [epoch %d] train loss: %f (aux %f)' %
-              (model.num_stages, i, np.mean(losses), np.mean(aux_losses)))
+              (model.num_stages, i, new_loss, np.mean(aux_losses)))
 
 
 def create_or_load_model(args):
@@ -185,6 +193,7 @@ def arg_parser():
 
     parser.add_argument('--tune-epochs', default=1, type=int)
     parser.add_argument('--tune-lr', default=0.001, type=float)
+    parser.add_argument('--tune-lr-step', default=0.3, type=float)
     parser.add_argument('--tune-aux-coeff', default=0.01, type=float)
 
     return parser
