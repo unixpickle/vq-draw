@@ -57,7 +57,7 @@ def main():
         print('[stage %d] initial test loss: %f' % (stage, evaluate_model(test_loader, model)))
         if stage != 1:
             tune_model(args, train_loader, model)
-        print('[stage %d] final test loss: %f' % (stage, evaluate_model(test_loader, model)))
+            print('[stage %d] final test loss: %f' % (stage, evaluate_model(test_loader, model)))
 
         save_checkpoint(args, model)
         save_renderings(args, test_loader, model)
