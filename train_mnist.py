@@ -63,9 +63,9 @@ def main():
 def add_stages(args, train_loader, test_loader, model):
     for i in range(model.num_stages, args.latents):
         if args.no_pretrain:
-            zeros = torch.zeros((args.options,) + model.shape)
-            model.add_stage(OutputLayer(args.options, zero=False),
-                            nn.Parameter(zeros).to(DEVICE))
+            zeros = torch.zeros((args.options,) + model.shape).to(DEVICE)
+            model.add_stage(OutputLayer(args.options, zero=False).to(DEVICE),
+                            nn.Parameter(zeros))
             continue
         stage = i + 1
         samples = gather_samples(train_loader, args.init_samples)
