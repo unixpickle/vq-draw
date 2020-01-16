@@ -120,7 +120,7 @@ def evaluate_model(loader, model):
         inputs = inputs.to(DEVICE)
         with torch.no_grad():
             outputs = model.reconstruct(inputs)
-        loss += inputs.shape[0] * model.loss_fn.loss(outputs, inputs)
+        loss += inputs.shape[0] * model.loss_fn(outputs, inputs)
         count += inputs.shape[0]
     return loss / count
 

@@ -8,7 +8,7 @@ def initialize_biases(encoder, data, batch=None):
     with torch.no_grad():
         recon = encoder.reconstruct(data, batch=batch)
     recon = recon.detach().requires_grad_(True)
-    loss = encoder.loss_fn.loss(recon, data)
+    loss = encoder.loss_fn(recon, data)
     grads, = torch.autograd.grad(loss, recon)
     grads /= torch.std(grads)
     dense_grads = grads.view(grads.shape[0], -1)
@@ -31,7 +31,7 @@ def _scale_line_search(recon, data, loss, biases, labels):
 
         def loss_fn(alpha):
             new_recon = sub_recon + bias * alpha
-            new_loss = loss.loss(new_recon, sub_data)
+            new_loss = loss(new_recon, sub_data)
             return new_loss.item()
         alpha = float(minimize_scalar(loss_fn, bracket=(0, 1000)).x)
         results.append(bias * alpha)
