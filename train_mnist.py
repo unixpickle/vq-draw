@@ -70,6 +70,7 @@ def main():
         save_samples(args, model)
         test_loss = evaluate_model(test_loader, model)
         train_loss = tune_model(args, train_loader, model, log=False)
+        save_checkpoint(args, model)
         print('[tune %d] train=%f test=%f' % (i, train_loss, test_loss))
 
 
