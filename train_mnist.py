@@ -1,4 +1,5 @@
 import argparse
+import itertools
 import os
 
 from PIL import Image
@@ -63,8 +64,11 @@ def main():
         save_renderings(args, test_loader, model)
         save_samples(args, model)
 
-    save_renderings(args, test_loader, model)
-    save_samples(args, model)
+    for i in itertools.count():
+        save_renderings(args, test_loader, model)
+        save_samples(args, model)
+        print('[tune %d] initial test loss: %f' % (stage, evaluate_model(test_loader, model)))
+        tune_model(args, train_loader, model)
 
 
 def create_datasets(batch_size):
