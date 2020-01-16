@@ -167,7 +167,7 @@ def create_or_load_model(args):
         return load_checkpoint(args)
     else:
         print('=> creating new encoder model...')
-        return Encoder((1, 28, 28), args.options, BaseLayer(), MSELoss())
+        return Encoder((1, 28, 28), args.options, BaseLayer().to(DEVICE), MSELoss())
 
 
 def load_checkpoint(args):
