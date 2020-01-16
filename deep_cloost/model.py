@@ -32,9 +32,7 @@ class Encoder(nn.Module):
         all_losses = []
         for i in range(self.num_stages):
             new_outputs = self.apply_stage(i, current_outputs)
-            losses = torch.stack([torch.stack([self.loss_fn(new_outputs[i, j], inputs[i])
-                                               for j in range(new_outputs.shape[1])])
-                                  for i in range(new_outputs.shape[0])])
+            losses = self.loss_fn.loss_grid(new_outputs, inputs[:, None])
             all_losses.append(losses)
             indices = torch.argmin(losses, dim=1)
             encodings.append(indices)

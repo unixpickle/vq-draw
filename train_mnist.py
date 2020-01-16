@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms
 
+from deep_cloost.losses import MSELoss
 from deep_cloost.model import Encoder
 from deep_cloost.train import initialize_biases
 
@@ -119,7 +120,7 @@ def evaluate_model(loader, model):
         inputs = inputs.to(DEVICE)
         with torch.no_grad():
             outputs = model.reconstruct(inputs)
-        loss += inputs.shape[0] * model.loss_fn(outputs, inputs)
+        loss += inputs.shape[0] * model.loss_fn.loss(outputs, inputs)
         count += inputs.shape[0]
     return loss / count
 
@@ -156,12 +157,12 @@ def create_or_load_model(args):
         return load_checkpoint(args)
     else:
         print('=> creating new encoder model...')
-        return Encoder((1, 28, 28), args.options, lambda x: x, nn.MSELoss())
+        return Encoder((1, 28, 28), args.options, lambda x: x, MSELoss())
 
 
 def load_checkpoint(args):
     state = torch.load(args.checkpoint, map_location='cpu')
-    model = Encoder((1, 28, 28), args.options, lambda x: x, nn.MSELoss(),
+    model = Encoder((1, 28, 28), args.options, lambda x: x, MSELoss(),
                     output_fn=lambda: OutputLayer(args.options),
                     num_stages=state['num_stages'])
     model.load_state_dict(state['encoder'])
