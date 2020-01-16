@@ -20,7 +20,7 @@ DEVICE = (torch.device('cuda') if USE_CUDA else torch.device('cpu'))
 
 
 class OutputLayer(nn.Module):
-    def __init__(self, num_options):
+    def __init__(self, num_options, zero=True):
         super().__init__()
         self.num_options = num_options
         self.layers = nn.Sequential(
@@ -37,8 +37,9 @@ class OutputLayer(nn.Module):
             nn.Conv2d(16, num_options, 3, padding=1),
         )
         # Don't interfere with the biases by default.
-        self.layers[-1].weight.detach().zero_()
-        self.layers[-1].bias.detach().zero_()
+        if zero:
+            self.layers[-1].weight.detach().zero_()
+            self.layers[-1].bias.detach().zero_()
 
     def forward(self, x):
         new_shape = x.shape[:1] + (self.num_options,) + x.shape[1:]
@@ -50,7 +51,21 @@ def main():
     train_loader, test_loader = create_datasets(args.batch)
     model = create_or_load_model(args)
 
+    add_stages(args, train_loader, test_loader, model)
+
+    for i in itertools.count():
+        save_renderings(args, test_loader, model)
+        save_samples(args, model)
+        print('[tune %d] initial test loss: %f' % (i, evaluate_model(test_loader, model)))
+        tune_model(args, train_loader, model)
+
+
+def add_stages(args, train_loader, test_loader, model):
     for i in range(model.num_stages, args.latents):
+        if args.no_pretrain:
+            model.add_stage(OutputLayer(args.options, zero=False),
+                            torch.zeros((args.options,) + model.shape).to(DEVICE))
+            continue
         stage = i + 1
         samples = gather_samples(train_loader, args.init_samples)
         biases = initialize_biases(model, samples, batch=args.batch)
@@ -63,12 +78,6 @@ def main():
         save_checkpoint(args, model)
         save_renderings(args, test_loader, model)
         save_samples(args, model)
-
-    for i in itertools.count():
-        save_renderings(args, test_loader, model)
-        save_samples(args, model)
-        print('[tune %d] initial test loss: %f' % (stage, evaluate_model(test_loader, model)))
-        tune_model(args, train_loader, model)
 
 
 def create_datasets(batch_size):
@@ -194,6 +203,7 @@ def arg_parser():
     parser.add_argument('--latents', default=20, type=int)
     parser.add_argument('--options', default=8, type=int)
     parser.add_argument('--init-samples', default=10000, type=int)
+    parser.add_argument('--no-pretrain', action='store_true')
     parser.add_argument('--checkpoint', default='mnist_model.pt', type=str)
 
     parser.add_argument('--tune-epochs', default=1, type=int)
