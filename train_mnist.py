@@ -64,11 +64,13 @@ def main():
 
     add_stages(args, train_loader, test_loader, model)
 
+    args.tune_epochs = 1
     for i in itertools.count():
         save_renderings(args, test_loader, model)
         save_samples(args, model)
-        print('[tune %d] initial test loss: %f' % (i, evaluate_model(test_loader, model)))
-        tune_model(args, train_loader, model)
+        test_loss = evaluate_model(test_loader, model)
+        train_loss = tune_model(args, train_loader, model, log=False)
+        print('[tune %d] train=%f test=%f' % (i, train_loss, test_loss))
 
 
 def add_stages(args, train_loader, test_loader, model):
@@ -135,7 +137,7 @@ def evaluate_model(loader, model):
     return loss / count
 
 
-def tune_model(args, loader, model):
+def tune_model(args, loader, model, log=True):
     optimizer = optim.Adam(model.parameters(), lr=args.tune_lr)
     last_loss = None
     for i in range(args.tune_epochs):
@@ -157,8 +159,11 @@ def tune_model(args, loader, model):
                 param_group['lr'] *= args.tune_lr_step
         last_loss = new_loss
 
-        print('[stage %d] * [epoch %d] train loss: %f (aux %f)' %
-              (model.num_stages, i, new_loss, np.mean(aux_losses)))
+        if log:
+            print('[stage %d] * [epoch %d] train loss: %f (aux %f)' %
+                  (model.num_stages, i, new_loss, np.mean(aux_losses)))
+
+    return last_loss
 
 
 def create_or_load_model(args):
