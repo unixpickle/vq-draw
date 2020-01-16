@@ -20,10 +20,9 @@ USE_CUDA = torch.cuda.is_available()
 DEVICE = (torch.device('cuda') if USE_CUDA else torch.device('cpu'))
 
 
-class OutputLayer(nn.Module):
-    def __init__(self, num_options, zero=True):
+class BaseLayer(nn.Module):
+    def __init__(self):
         super().__init__()
-        self.num_options = num_options
         self.layers = nn.Sequential(
             nn.Conv2d(1, 16, 3, stride=2, padding=1),
             nn.ReLU(),
@@ -35,6 +34,17 @@ class OutputLayer(nn.Module):
             nn.ReLU(),
             nn.ConvTranspose2d(16, 16, 3, stride=2, padding=1, output_padding=1),
             nn.ReLU(),
+        )
+
+    def forward(self, x):
+        return self.layers(x)
+
+
+class OutputLayer(nn.Module):
+    def __init__(self, num_options, zero=True):
+        super().__init__()
+        self.num_options = num_options
+        self.layers = nn.Sequential(
             nn.Conv2d(16, num_options, 3, padding=1),
         )
         # Don't interfere with the biases by default.
@@ -43,7 +53,7 @@ class OutputLayer(nn.Module):
             self.layers[-1].bias.detach().zero_()
 
     def forward(self, x):
-        new_shape = x.shape[:1] + (self.num_options,) + x.shape[1:]
+        new_shape = x.shape[:1] + (self.num_options, 1) + x.shape[2:]
         return self.layers(x).view(new_shape)
 
 
@@ -157,12 +167,12 @@ def create_or_load_model(args):
         return load_checkpoint(args)
     else:
         print('=> creating new encoder model...')
-        return Encoder((1, 28, 28), args.options, lambda x: x, MSELoss())
+        return Encoder((1, 28, 28), args.options, BaseLayer(), MSELoss())
 
 
 def load_checkpoint(args):
     state = torch.load(args.checkpoint, map_location='cpu')
-    model = Encoder((1, 28, 28), args.options, lambda x: x, MSELoss(),
+    model = Encoder((1, 28, 28), args.options, BaseLayer(), MSELoss(),
                     output_fn=lambda: OutputLayer(args.options),
                     num_stages=state['num_stages'])
     model.load_state_dict(state['encoder'])
