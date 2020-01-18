@@ -60,7 +60,9 @@ class Encoder(nn.Module):
 
     def train_losses(self, inputs):
         losses = self(inputs)[-1]
-        return torch.mean(torch.min(losses[:, -1], dim=-1)[0]), torch.mean(losses)
+        return (torch.mean(torch.min(losses[:, -1], dim=-1)[0]),
+                torch.mean(torch.min(losses, dim=-1)[0]),
+                torch.mean(losses))
 
     def apply_stage(self, idx, x):
         layer = self.output_layers[idx]

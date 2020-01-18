@@ -24,15 +24,17 @@ class BaseLayer(nn.Module):
     def __init__(self):
         super().__init__()
         self.layers = nn.Sequential(
-            nn.Conv2d(1, 16, 3, stride=2, padding=1),
+            nn.Conv2d(1, 32, 3, stride=2, padding=1),
             nn.ReLU(),
-            nn.Conv2d(16, 32, 3, stride=2, padding=1),
+            nn.Conv2d(32, 64, 3, stride=2, padding=1),
             nn.ReLU(),
-            nn.Conv2d(32, 32, 3, padding=1),
+            nn.Conv2d(64, 128, 3, padding=1),
             nn.ReLU(),
-            nn.ConvTranspose2d(32, 16, 3, stride=2, padding=1, output_padding=1),
+            nn.Conv2d(128, 64, 3, padding=1),
             nn.ReLU(),
-            nn.ConvTranspose2d(16, 16, 3, stride=2, padding=1, output_padding=1),
+            nn.ConvTranspose2d(64, 64, 3, stride=2, padding=1, output_padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(64, 64, 3, stride=2, padding=1, output_padding=1),
             nn.ReLU(),
         )
 
@@ -45,7 +47,7 @@ class OutputLayer(nn.Module):
         super().__init__()
         self.num_options = num_options
         self.layers = nn.Sequential(
-            nn.Conv2d(16, num_options, 3, padding=1),
+            nn.Conv2d(64, num_options, 3, padding=1),
         )
         # Don't interfere with the biases by default.
         if zero:
@@ -146,8 +148,8 @@ def tune_model(args, loader, model, log=True):
         aux_losses = []
         for inputs, _ in loader:
             inputs = inputs.to(DEVICE)
-            main_loss, aux_loss = model.train_losses(inputs)
-            loss = main_loss + aux_loss * args.tune_aux_coeff
+            main_loss, all_loss, aux_loss = model.train_losses(inputs)
+            loss = main_loss + all_loss + aux_loss * args.tune_aux_coeff
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
