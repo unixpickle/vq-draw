@@ -14,7 +14,7 @@ class Encoder(nn.Module):
         for _ in range(num_stages):
             layer = output_fn()
             bias = nn.Parameter(torch.zeros((options,) + shape))
-            self.add_stage(layer, bias)
+            self.add_stage(layer, bias=bias)
 
     def forward(self, inputs):
         """
@@ -72,7 +72,11 @@ class Encoder(nn.Module):
         layer_out = bias + layer_out
         return x[:, None] + layer_out
 
-    def add_stage(self, layer, bias):
+    def add_stage(self, layer, bias=None):
+        if bias is None:
+            device = next(layer.parameters()).device
+            zeros = torch.zeros((self.options,) + self.shape).to(device)
+            bias = nn.Parameter(zeros)
         i = self.num_stages
         self.output_layers.append(layer)
         self.output_biases.append(bias)

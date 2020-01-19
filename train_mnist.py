@@ -11,7 +11,7 @@ from torchvision import datasets, transforms
 
 from deep_cloost.losses import MSELoss
 from deep_cloost.model import Encoder
-from deep_cloost.train import initialize_biases
+from deep_cloost.train import initialize_biases, gather_samples, evaluate_model
 
 RENDER_GRID = 5
 SAMPLE_GRID = 5
@@ -79,14 +79,12 @@ def main():
 def add_stages(args, train_loader, test_loader, model):
     for i in range(model.num_stages, args.latents):
         if args.no_pretrain:
-            zeros = torch.zeros((args.options,) + model.shape).to(DEVICE)
-            model.add_stage(OutputLayer(args.options, zero=False).to(DEVICE),
-                            nn.Parameter(zeros))
+            model.add_stage(OutputLayer(args.options, zero=False).to(DEVICE))
             continue
         stage = i + 1
-        samples = gather_samples(train_loader, args.init_samples)
+        samples = gather_samples(train_loader, args.init_samples).to(DEVICE)
         biases = initialize_biases(model, samples, batch=args.batch)
-        model.add_stage(OutputLayer(args.options).to(DEVICE), biases)
+        model.add_stage(OutputLayer(args.options).to(DEVICE), bias=biases)
         print('[stage %d] initial test loss: %f' % (stage, evaluate_model(test_loader, model)))
         if stage != 1:
             tune_model(args, train_loader, model)
@@ -114,30 +112,6 @@ def create_datasets(batch_size):
         ])),
         batch_size=batch_size, shuffle=True, **kwargs)
     return train_loader, test_loader
-
-
-def gather_samples(loader, num_samples):
-    results = []
-    count = 0
-    while count < num_samples:
-        for inputs, _ in loader:
-            results.append(inputs)
-            count += inputs.shape[0]
-            if count >= num_samples:
-                break
-    return torch.cat(results, dim=0)[:num_samples].to(DEVICE)
-
-
-def evaluate_model(loader, model):
-    loss = 0.0
-    count = 0
-    for inputs, _ in loader:
-        inputs = inputs.to(DEVICE)
-        with torch.no_grad():
-            outputs = model.reconstruct(inputs)
-        loss += inputs.shape[0] * model.loss_fn(outputs, inputs)
-        count += inputs.shape[0]
-    return loss / count
 
 
 def tune_model(args, loader, model, log=True):

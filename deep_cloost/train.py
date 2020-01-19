@@ -5,6 +5,19 @@ import torch.nn as nn
 
 
 def initialize_biases(encoder, data, batch=None):
+    """
+    Use clustering to generate initial biases for the next
+    stage of the encoder.
+
+    Args:
+        encoder: an Encoder model.
+        data: a Tensor of shape [N x *encoder.shape].
+        batch: the batch size to use for evaluating the
+          data in the model.
+
+    Returns:
+        An nn.Parameter to use as the biases.
+    """
     with torch.no_grad():
         recon = encoder.reconstruct(data, batch=batch)
     recon = recon.detach().requires_grad_(True)
@@ -36,3 +49,42 @@ def _scale_line_search(recon, data, loss, biases, labels):
         alpha = float(minimize_scalar(loss_fn, bracket=(0, 1000)).x)
         results.append(bias * alpha)
     return torch.stack(results)
+
+
+def gather_samples(loader, num_samples):
+    """
+    Gather a batch of samples from a data loader.
+    """
+    results = []
+    count = 0
+    while count < num_samples:
+        for inputs, _ in loader:
+            results.append(inputs)
+            count += inputs.shape[0]
+            if count >= num_samples:
+                break
+    return torch.cat(results, dim=0)[:num_samples]
+
+
+def evaluate_model(loader, model):
+    """
+    Evaluate the reconstruction loss for a model on an
+    entire dataset, represented by a loader.
+
+    Returns:
+        A scalar Tensor of the loss.
+    """
+    device = torch.device('cpu')
+    for p in model.parameters():
+        device = p.device
+        break
+
+    loss = 0.0
+    count = 0
+    for inputs, _ in loader:
+        inputs = inputs.to(device)
+        with torch.no_grad():
+            outputs = model.reconstruct(inputs)
+            loss += inputs.shape[0] * model.loss_fn(outputs, inputs)
+        count += inputs.shape[0]
+    return loss / count
