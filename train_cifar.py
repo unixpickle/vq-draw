@@ -203,7 +203,6 @@ def save_renderings(args, loader, model):
     img = np.clip(((img * 0.5) + 0.5), 0, 1)
     img = (img * 255).astype('uint8')
     grid = np.concatenate(img.reshape([RENDER_GRID, -1, IMG_SIZE * 2, 3]), axis=-2)
-    print(grid.shape)
     Image.fromarray(grid).save('renderings.png')
 
 
