@@ -170,7 +170,7 @@ def save_checkpoint(args, model):
 
 
 def save_renderings(args, loader, model):
-    data = gather_samples(loader, RENDER_GRID ** 2)
+    data = gather_samples(loader, RENDER_GRID ** 2).to(DEVICE)
     with torch.no_grad():
         recons = model.reconstruct(data)
     img = torch.cat([data, recons], dim=-1).view(-1, 28 * 2).cpu().numpy()
