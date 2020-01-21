@@ -26,19 +26,23 @@ class BaseLayer(nn.Module):
         super().__init__()
         self.num_options = num_options
         self.layers = nn.Sequential(
-            nn.Conv2d(3, 32, 3, stride=2, padding=1),
+            nn.Conv2d(3, 64, 3, stride=2, padding=1),
             nn.ReLU(),
-            nn.Conv2d(32, 64, 3, stride=2, padding=1),
+            nn.Conv2d(64, 128, 3, stride=2, padding=1),
             nn.ReLU(),
-            nn.Conv2d(64, 128, 3, padding=1),
+            nn.Conv2d(128, 256, 3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(128, 64, 3, padding=1),
+            nn.Conv2d(256, 256, 3, padding=1),
             nn.ReLU(),
-            nn.ConvTranspose2d(64, 64, 3, stride=2, padding=1, output_padding=1),
+            nn.Conv2d(256, 128, 3, padding=1),
             nn.ReLU(),
-            nn.ConvTranspose2d(64, 64, 3, stride=2, padding=1, output_padding=1),
+            nn.Conv2d(128, 128, 3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(64, num_options*3, 3, padding=1),
+            nn.ConvTranspose2d(128, 128, 3, stride=2, padding=1, output_padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(128, 128, 3, stride=2, padding=1, output_padding=1),
+            nn.ReLU(),
+            nn.Conv2d(128, num_options*3, 3, padding=1),
         )
 
     def forward(self, x):
