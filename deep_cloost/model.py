@@ -95,26 +95,45 @@ class CIFARBaseLayer(nn.Module):
         super().__init__()
         self.num_options = num_options
         self.layers = nn.Sequential(
-            nn.Conv2d(3, 64, 3, stride=2, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(64, 128, 3, stride=2, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(128, 256, 3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(256, 256, 3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(256, 128, 3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(128, 128, 3, padding=1),
-            nn.ReLU(),
-            nn.ConvTranspose2d(128, 128, 3, stride=2, padding=1, output_padding=1),
-            nn.ReLU(),
-            nn.ConvTranspose2d(128, 128, 3, stride=2, padding=1, output_padding=1),
-            nn.ReLU(),
-            nn.Conv2d(128, num_options*3, 3, padding=1),
+            SkipConnect(
+                nn.Conv2d(3, 64, 3, stride=2, padding=1),
+                nn.ReLU(),
+                nn.BatchNorm2d(64),
+                SkipConnect(
+                    nn.Conv2d(64, 128, 3, stride=2, padding=1),
+                    nn.ReLU(),
+                    nn.BatchNorm2d(128),
+                    SkipConnect(
+                        nn.Conv2d(128, 256, 3, padding=1),
+                        nn.ReLU(),
+                        nn.BatchNorm2d(256),
+                        nn.Conv2d(256, 256, 3, padding=1),
+                        nn.ReLU(),
+                        nn.BatchNorm2d(256),
+                        nn.Conv2d(256, 128, 3, padding=1),
+                        nn.ReLU(),
+                        nn.BatchNorm2d(128),
+                        nn.Conv2d(128, 128, 3, padding=1),
+                        nn.ReLU(),
+                        nn.BatchNorm2d(128),
+                    ),
+                    nn.ConvTranspose2d(128+128, 128, 3, stride=2, padding=1, output_padding=1),
+                    nn.ReLU(),
+                    nn.BatchNorm2d(128),
+                ),
+                nn.ConvTranspose2d(64+128, 128, 3, stride=2, padding=1, output_padding=1),
+                nn.ReLU(),
+                nn.BatchNorm2d(128),
+            ),
+            nn.Conv2d(3+128, num_options*3, 3, padding=1),
         )
 
     def forward(self, x):
         x = self.layers(x)
         new_shape = (x.shape[0], self.num_options, 3, *x.shape[2:])
         return x.view(new_shape)
+
+
+class SkipConnect(nn.Sequential):
+    def forward(self, x):
+        return torch.cat([super().forward(x), x], dim=1)

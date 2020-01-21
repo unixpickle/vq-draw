@@ -25,6 +25,7 @@ def main():
     args = arg_parser().parse_args()
     train_loader, test_loader = create_datasets(args.batch)
     model = create_or_load_model(args)
+    model.eval()
 
     add_stages(args, train_loader, test_loader, model)
 
@@ -75,6 +76,7 @@ def create_datasets(batch_size):
 
 
 def tune_model(args, loader, model, log=True):
+    model.train()
     optimizer = optim.Adam(model.parameters(), lr=args.tune_lr)
     last_loss = None
     for i in range(args.tune_epochs):
@@ -100,6 +102,7 @@ def tune_model(args, loader, model, log=True):
             print('[stage %d] * [epoch %d] train loss: %f (aux %f)' %
                   (model.num_stages, i, new_loss, np.mean(aux_losses)))
 
+    model.eval()
     return last_loss
 
 
