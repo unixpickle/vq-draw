@@ -88,3 +88,33 @@ class Encoder(nn.Module):
     @property
     def num_stages(self):
         return len(self.output_layers)
+
+
+class CIFARBaseLayer(nn.Module):
+    def __init__(self, num_options):
+        super().__init__()
+        self.num_options = num_options
+        self.layers = nn.Sequential(
+            nn.Conv2d(3, 64, 3, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(64, 128, 3, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(128, 256, 3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(256, 256, 3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(256, 128, 3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(128, 128, 3, padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(128, 128, 3, stride=2, padding=1, output_padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(128, 128, 3, stride=2, padding=1, output_padding=1),
+            nn.ReLU(),
+            nn.Conv2d(128, num_options*3, 3, padding=1),
+        )
+
+    def forward(self, x):
+        x = self.layers(x)
+        new_shape = (x.shape[0], self.num_options, 3, *x.shape[2:])
+        return x.view(new_shape)

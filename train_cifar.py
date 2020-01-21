@@ -10,7 +10,7 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 
 from deep_cloost.losses import MSELoss
-from deep_cloost.model import Encoder
+from deep_cloost.model import Encoder, CIFARBaseLayer
 from deep_cloost.train import initialize_biases, gather_samples, evaluate_model
 
 RENDER_GRID = 5
@@ -19,41 +19,6 @@ IMG_SIZE = 32
 
 USE_CUDA = torch.cuda.is_available()
 DEVICE = (torch.device('cuda') if USE_CUDA else torch.device('cpu'))
-
-
-class BaseLayer(nn.Module):
-    def __init__(self, num_options):
-        super().__init__()
-        self.num_options = num_options
-        self.layers = nn.Sequential(
-            nn.Conv2d(3, 64, 3, stride=2, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(64, 128, 3, stride=2, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(128, 256, 3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(256, 256, 3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(256, 128, 3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(128, 128, 3, padding=1),
-            nn.ReLU(),
-            nn.ConvTranspose2d(128, 128, 3, stride=2, padding=1, output_padding=1),
-            nn.ReLU(),
-            nn.ConvTranspose2d(128, 128, 3, stride=2, padding=1, output_padding=1),
-            nn.ReLU(),
-            nn.Conv2d(128, num_options*3, 3, padding=1),
-        )
-
-    def forward(self, x):
-        x = self.layers(x)
-        new_shape = (x.shape[0], self.num_options, 3, *x.shape[2:])
-        return x.view(new_shape)
-
-
-class OutputLayer(nn.Module):
-    def forward(self, x):
-        return x
 
 
 def main():
@@ -76,12 +41,12 @@ def main():
 def add_stages(args, train_loader, test_loader, model):
     for i in range(model.num_stages, args.latents):
         if args.no_pretrain:
-            model.add_stage(OutputLayer().to(DEVICE))
+            model.add_stage(nn.Identity().to(DEVICE))
             continue
         stage = i + 1
         samples = gather_samples(train_loader, args.init_samples).to(DEVICE)
         biases = initialize_biases(model, samples, batch=args.batch)
-        model.add_stage(OutputLayer().to(DEVICE), bias=biases)
+        model.add_stage(nn.Identity().to(DEVICE), bias=biases)
         print('[stage %d] initial test loss: %f' % (stage, evaluate_model(test_loader, model)))
         if stage != 1:
             tune_model(args, train_loader, model)
@@ -145,14 +110,15 @@ def create_or_load_model(args):
     else:
         print('=> creating new encoder model...')
         return Encoder((3, IMG_SIZE, IMG_SIZE), args.options,
-                       BaseLayer(args.options).to(DEVICE),
+                       CIFARBaseLayer(args.options).to(DEVICE),
                        MSELoss())
 
 
 def load_checkpoint(args):
     state = torch.load(args.checkpoint, map_location='cpu')
-    model = Encoder((3, IMG_SIZE, IMG_SIZE), args.options, BaseLayer(args.options), MSELoss(),
-                    output_fn=OutputLayer,
+    model = Encoder((3, IMG_SIZE, IMG_SIZE), args.options, CIFARBaseLayer(args.options),
+                    MSELoss(),
+                    output_fn=nn.Identity,
                     num_stages=state['num_stages'])
     model.load_state_dict(state['encoder'])
     return model.to(DEVICE)
