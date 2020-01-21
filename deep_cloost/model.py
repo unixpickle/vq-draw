@@ -94,6 +94,7 @@ class CIFARBaseLayer(nn.Module):
     def __init__(self, num_options):
         super().__init__()
         self.num_options = num_options
+        self.output_scale = nn.Parameter(torch.tensor(0.05))
         self.layers = nn.Sequential(
             SkipConnect(
                 nn.Conv2d(3, 64, 3, stride=2, padding=1),
@@ -129,7 +130,7 @@ class CIFARBaseLayer(nn.Module):
         )
 
     def forward(self, x):
-        x = self.layers(x)
+        x = self.layers(x) * self.output_scale
         new_shape = (x.shape[0], self.num_options, 3, *x.shape[2:])
         return x.view(new_shape)
 
