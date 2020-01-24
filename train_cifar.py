@@ -84,7 +84,8 @@ def tune_model(args, loader, model, log=True):
         aux_losses = []
         for inputs, _ in loader:
             inputs = inputs.to(DEVICE)
-            main_loss, all_loss, aux_loss = model.train_losses(inputs)
+            main_loss, all_loss, aux_loss = model.train_losses(inputs,
+                                                               checkpoint=args.grad_checkpoint)
             loss = main_loss + all_loss + aux_loss * args.tune_aux_coeff
             optimizer.zero_grad()
             loss.backward()
@@ -168,6 +169,7 @@ def arg_parser():
     parser.add_argument('--no-pretrain', action='store_true')
     parser.add_argument('--checkpoint', default='mnist_model.pt', type=str)
 
+    parser.add_argument('--grad-checkpoint', action='store_true')
     parser.add_argument('--tune-epochs', default=1, type=int)
     parser.add_argument('--tune-lr', default=0.001, type=float)
     parser.add_argument('--tune-lr-step', default=0.3, type=float)
