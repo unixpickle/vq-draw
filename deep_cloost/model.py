@@ -105,7 +105,10 @@ class Encoder(nn.Module):
                 torch.mean(losses))
 
     def apply_stage(self, idx, x):
-        return x[:, None] + self.bias + self.refiner(x)
+        res = x[:, None] + self.refiner(x)
+        if idx == 0:
+            res = res + self.bias
+        return res
 
 
 class CIFARRefiner(nn.Module):
