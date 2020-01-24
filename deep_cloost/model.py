@@ -115,7 +115,7 @@ class CIFARRefiner(nn.Module):
     def __init__(self, num_options):
         super().__init__()
         self.num_options = num_options
-        self.output_scale = nn.Parameter(torch.tensor(0.05))
+        self.output_scale = nn.Parameter(torch.tensor(0.01))
         self.layers = nn.Sequential(
             SkipConnect(
                 nn.Conv2d(3, 64, 3, stride=2, padding=1),
