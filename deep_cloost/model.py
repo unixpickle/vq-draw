@@ -6,18 +6,22 @@ import torch.utils.checkpoint
 
 
 class Encoder(nn.Module):
-    def __init__(self, shape, options, base, loss_fn, output_fn=None, num_stages=0):
+    def __init__(self, shape, options, refiner, loss_fn, num_stages=0):
         super().__init__()
         self.shape = shape
         self.options = options
-        self.base = base
+        self.refiner = refiner
         self.loss_fn = loss_fn
-        self.output_layers = []
-        self.output_biases = []
-        for _ in range(num_stages):
-            layer = output_fn()
-            bias = nn.Parameter(torch.zeros((options,) + shape))
-            self.add_stage(layer, bias=bias)
+        self.bias = nn.Parameter(torch.zeros(options, *shape))
+        self.register_buffer('_stages', torch.tensor(num_stages, dtype=torch.long))
+
+    @property
+    def num_stages(self):
+        return self._stages.item()
+
+    @num_stages.setter
+    def num_stages(self, x):
+        self._stages.copy_(torch.zeros_like(self._stages) + x)
 
     def forward(self, inputs, checkpoint=False):
         """
@@ -101,32 +105,10 @@ class Encoder(nn.Module):
                 torch.mean(losses))
 
     def apply_stage(self, idx, x):
-        layer = self.output_layers[idx]
-        bias = self.output_biases[idx]
-        base_out = self.base(x)
-        layer_out = layer(base_out)
-        layer_out = bias + layer_out
-        return x[:, None] + layer_out
-
-    def add_stage(self, layer, bias=None):
-        i = self.num_stages
-        self.output_layers.append(layer)
-        self.add_module('output%d' % i, layer)
-
-        if bias is None:
-            device = next(self.parameters()).device
-            zeros = torch.zeros((self.options,) + self.shape).to(device)
-            bias = nn.Parameter(zeros)
-
-        self.output_biases.append(bias)
-        self.register_parameter('bias%d' % i, bias)
-
-    @property
-    def num_stages(self):
-        return len(self.output_layers)
+        return x[:, None] + self.bias + self.refiner(x)
 
 
-class CIFARBaseLayer(nn.Module):
+class CIFARRefiner(nn.Module):
     def __init__(self, num_options):
         super().__init__()
         self.num_options = num_options

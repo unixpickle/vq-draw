@@ -1,17 +1,15 @@
 import argparse
-import itertools
 import os
 
 from PIL import Image
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms
 
 from deep_cloost.losses import MSELoss
-from deep_cloost.model import Encoder, CIFARBaseLayer
-from deep_cloost.train import initialize_biases, gather_samples, evaluate_model
+from deep_cloost.model import Encoder, CIFARRefiner
+from deep_cloost.train import gather_samples
 
 RENDER_GRID = 5
 SAMPLE_GRID = 5
@@ -25,37 +23,23 @@ def main():
     args = arg_parser().parse_args()
     train_loader, test_loader = create_datasets(args.batch)
     model = create_or_load_model(args)
-    model.eval()
 
-    add_stages(args, train_loader, test_loader, model)
-
-    args.tune_epochs = 1
-    for i in itertools.count():
-        save_renderings(args, test_loader, model)
-        save_samples(args, model)
-        test_loss = evaluate_model(test_loader, model)
-        train_loss = tune_model(args, train_loader, model, log=False)
-        save_checkpoint(args, model)
-        print('[tune %d] train=%f test=%f' % (i, train_loss, test_loss))
-
-
-def add_stages(args, train_loader, test_loader, model):
-    for i in range(model.num_stages, args.latents):
-        if args.no_pretrain:
-            model.add_stage(nn.Identity().to(DEVICE))
-            continue
-        stage = i + 1
-        samples = gather_samples(train_loader, args.init_samples).to(DEVICE)
-        biases = initialize_biases(model, samples, batch=args.batch)
-        model.add_stage(nn.Identity().to(DEVICE), bias=biases)
-        print('[stage %d] initial test loss: %f' % (stage, evaluate_model(test_loader, model)))
-        if stage != 1:
-            tune_model(args, train_loader, model)
-            print('[stage %d] final test loss: %f' % (stage, evaluate_model(test_loader, model)))
-
-        save_checkpoint(args, model)
-        save_renderings(args, test_loader, model)
-        save_samples(args, model)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    loaders = zip(cycle_batches(train_loader), cycle_batches(test_loader))
+    for i, (train_batch, test_batch) in enumerate(loaders):
+        loss_final, loss_all, loss_aux = model.train_losses(train_batch,
+                                                            checkpoint=args.grad_checkpoint)
+        with torch.no_grad():
+            loss_test, _, _ = model.train_losses(test_batch, checkpoint=args.grad_checkpoint)
+        loss = loss_final + loss_all + loss_aux * args.aux_coeff
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        print('step %d: train=%f test=%f' % (i, loss_final.item(), loss_test.item()))
+        if not i % args.save_interval:
+            save_checkpoint(args, model)
+            save_renderings(args, test_loader, model)
+            save_samples(args, model)
 
 
 def create_datasets(batch_size):
@@ -75,65 +59,29 @@ def create_datasets(batch_size):
     return train_loader, test_loader
 
 
-def tune_model(args, loader, model, log=True):
-    model.train()
-    optimizer = optim.Adam(model.parameters(), lr=args.tune_lr)
-    last_loss = None
-    for i in range(args.tune_epochs):
-        losses = []
-        aux_losses = []
-        for inputs, _ in loader:
-            inputs = inputs.to(DEVICE)
-            main_loss, all_loss, aux_loss = model.train_losses(inputs,
-                                                               checkpoint=args.grad_checkpoint)
-            loss = main_loss + all_loss + aux_loss * args.tune_aux_coeff
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            losses.append(main_loss.item())
-            aux_losses.append(aux_loss.item())
-
-        new_loss = np.mean(losses)
-        if last_loss is not None and new_loss > last_loss:
-            for param_group in optimizer.param_groups:
-                param_group['lr'] *= args.tune_lr_step
-        last_loss = new_loss
-
-        if log:
-            print('[stage %d] * [epoch %d] train loss: %f (aux %f)' %
-                  (model.num_stages, i, new_loss, np.mean(aux_losses)))
-
-    model.eval()
-    return last_loss
+def cycle_batches(loader):
+    while True:
+        for batch, _ in loader:
+            yield batch.to(DEVICE)
 
 
 def create_or_load_model(args):
+    model = Encoder(shape=(3, IMG_SIZE, IMG_SIZE),
+                    options=args.options,
+                    refiner=CIFARRefiner(args.options),
+                    loss_fn=MSELoss(),
+                    num_stages=args.stages)
     if os.path.exists(args.checkpoint):
         print('=> loading encoder model from checkpoint...')
-        return load_checkpoint(args)
+        model.load_state_dict(torch.load(args.checkpoint, map_location='cpu'))
+        model.num_stages = args.stages
     else:
-        print('=> creating new encoder model...')
-        return Encoder((3, IMG_SIZE, IMG_SIZE), args.options,
-                       CIFARBaseLayer(args.options).to(DEVICE),
-                       MSELoss())
-
-
-def load_checkpoint(args):
-    state = torch.load(args.checkpoint, map_location='cpu')
-    model = Encoder((3, IMG_SIZE, IMG_SIZE), args.options, CIFARBaseLayer(args.options),
-                    MSELoss(),
-                    output_fn=nn.Identity,
-                    num_stages=state['num_stages'])
-    model.load_state_dict(state['encoder'])
+        print('=> created new encoder model...')
     return model.to(DEVICE)
 
 
 def save_checkpoint(args, model):
-    checkpoint = {
-        'num_stages': model.num_stages,
-        'encoder': model.state_dict(),
-    }
-    torch.save(checkpoint, args.checkpoint)
+    torch.save(model.state_dict(), args.checkpoint)
 
 
 def save_renderings(args, loader, model):
@@ -163,17 +111,14 @@ def save_samples(args, model):
 def arg_parser():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--batch', default=32, type=int)
-    parser.add_argument('--latents', default=20, type=int)
+    parser.add_argument('--stages', default=20, type=int)
     parser.add_argument('--options', default=8, type=int)
-    parser.add_argument('--init-samples', default=10000, type=int)
-    parser.add_argument('--no-pretrain', action='store_true')
     parser.add_argument('--checkpoint', default='mnist_model.pt', type=str)
+    parser.add_argument('--save-interval', default=10, type=int)
 
     parser.add_argument('--grad-checkpoint', action='store_true')
-    parser.add_argument('--tune-epochs', default=1, type=int)
-    parser.add_argument('--tune-lr', default=0.001, type=float)
-    parser.add_argument('--tune-lr-step', default=0.3, type=float)
-    parser.add_argument('--tune-aux-coeff', default=0.01, type=float)
+    parser.add_argument('--lr', default=0.001, type=float)
+    parser.add_argument('--aux-coeff', default=0.01, type=float)
 
     return parser
 
