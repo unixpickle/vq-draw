@@ -31,7 +31,7 @@ def main():
                                                             checkpoint=args.grad_checkpoint)
         with torch.no_grad():
             loss_test, _, _ = model.train_losses(test_batch, checkpoint=args.grad_checkpoint)
-        loss = loss_final + loss_all + loss_aux * args.aux_coeff
+        loss = loss_final * args.final_coeff + loss_all + loss_aux * args.aux_coeff
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -119,6 +119,7 @@ def arg_parser():
     parser.add_argument('--grad-checkpoint', action='store_true')
     parser.add_argument('--lr', default=0.001, type=float)
     parser.add_argument('--aux-coeff', default=0.01, type=float)
+    parser.add_argument('--final-coeff', default=1, type=float)
 
     return parser
 
