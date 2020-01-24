@@ -27,15 +27,17 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     loaders = zip(cycle_batches(train_loader), cycle_batches(test_loader))
     for i, (train_batch, test_batch) in enumerate(loaders):
-        loss_final, loss_all, loss_aux = model.train_losses(train_batch,
-                                                            checkpoint=args.grad_checkpoint)
+        losses = model.train_losses(train_batch, checkpoint=args.grad_checkpoint)
         with torch.no_grad():
-            loss_test, _, _ = model.train_losses(test_batch, checkpoint=args.grad_checkpoint)
-        loss = loss_final * args.final_coeff + loss_all + loss_aux * args.aux_coeff
+            test_losses = model.train_losses(test_batch, checkpoint=args.grad_checkpoint)
+        loss = (losses['choice'] +
+                losses['final'] * args.final_coeff +
+                losses['all'] * args.aux_coeff)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        print('step %d: train=%f test=%f' % (i, loss_final.item(), loss_test.item()))
+        print('step %d: train=%f test=%f entropy=%f' %
+              (i, losses['final'].item(), test_losses['final'].item(), losses['entropy']))
         if not i % args.save_interval:
             save_checkpoint(args, model)
             save_renderings(args, test_loader, model)

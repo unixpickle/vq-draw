@@ -100,9 +100,16 @@ class Encoder(nn.Module):
 
     def train_losses(self, inputs, **kwargs):
         losses = self(inputs, **kwargs)[-1]
-        return (torch.mean(torch.min(losses[:, -1], dim=-1)[0]),
-                torch.mean(torch.min(losses, dim=-1)[0]),
-                torch.mean(losses))
+        codes = torch.argmin(losses, dim=-1).view(-1)
+        counts = torch.tensor([torch.sum(codes == i) for i in range(self.options)])
+        probs = counts.float() / float(codes.shape[0])
+        entropy = -torch.sum(torch.log(probs.clamp(1e-8, 1)) * probs)
+        return {
+            'final': torch.mean(torch.min(losses[:, -1], dim=-1)[0]),
+            'choice': torch.mean(torch.min(losses, dim=-1)[0]),
+            'all': torch.mean(losses),
+            'entropy': entropy,
+        }
 
     def apply_stage(self, idx, x):
         res = x[:, None] + self.refiner(x)
