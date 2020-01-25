@@ -77,6 +77,7 @@ class Trainer(ABC):
         parser.add_argument('--save-interval', default=10, type=int)
 
         parser.add_argument('--grad-checkpoint', action='store_true')
+        parser.add_argument('--grad-decay', default=0, type=float)
         parser.add_argument('--lr', default=0.001, type=float)
         parser.add_argument('--aux-coeff', default=0.01, type=float)
         parser.add_argument('--final-coeff', default=1, type=float)
@@ -116,9 +117,10 @@ class Trainer(ABC):
         if os.path.exists(self.args.checkpoint):
             print('=> loading encoder model from checkpoint...')
             model.load_state_dict(torch.load(self.args.checkpoint, map_location='cpu'))
-            model.num_stages = self.args.stages
         else:
             print('=> created new encoder model...')
+        model.num_stages = self.args.stages
+        model.grad_decay = self.args.grad_decay
         return model.to(self.device)
 
     def save_checkpoint(self):

@@ -6,7 +6,7 @@ import torch.utils.checkpoint
 
 
 class Encoder(nn.Module):
-    def __init__(self, shape, options, refiner, loss_fn, num_stages=0):
+    def __init__(self, shape, options, refiner, loss_fn, num_stages=0, grad_decay=0):
         super().__init__()
         self.shape = shape
         self.options = options
@@ -14,6 +14,7 @@ class Encoder(nn.Module):
         self.loss_fn = loss_fn
         self.bias = nn.Parameter(torch.zeros(options, *shape))
         self.register_buffer('_stages', torch.tensor(num_stages, dtype=torch.long))
+        self.register_buffer('_grad_decay', torch.tensor(grad_decay, dtype=torch.float))
 
     @property
     def num_stages(self):
@@ -22,6 +23,14 @@ class Encoder(nn.Module):
     @num_stages.setter
     def num_stages(self, x):
         self._stages.copy_(torch.zeros_like(self._stages) + x)
+
+    @property
+    def grad_decay(self):
+        return self._grad_decay.item()
+
+    @grad_decay.setter
+    def grad_decay(self, x):
+        self._grad_decay.copy_(torch.zeros_like(self._grad_decay) + x)
 
     def forward(self, inputs, checkpoint=False):
         """
@@ -112,6 +121,7 @@ class Encoder(nn.Module):
         }
 
     def apply_stage(self, idx, x):
+        x = x.detach()*self._grad_decay + x * (1 - self._grad_decay)
         res = x[:, None] + self.refiner(x)
         if idx == 0:
             res = res + self.bias

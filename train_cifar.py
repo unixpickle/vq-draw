@@ -44,8 +44,7 @@ class CIFARTrainer(Trainer):
         return Encoder(shape=self.shape,
                        options=self.args.options,
                        refiner=CIFARRefiner(self.args.options),
-                       loss_fn=MSELoss(),
-                       num_stages=self.args.stages)
+                       loss_fn=MSELoss())
 
 
 if __name__ == '__main__':
