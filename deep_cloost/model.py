@@ -163,6 +163,43 @@ class CIFARRefiner(nn.Module):
         return x.view(new_shape)
 
 
+class MNISTRefiner(nn.Module):
+    def __init__(self, num_options):
+        super().__init__()
+        self.num_options = num_options
+        self.output_scale = nn.Parameter(torch.tensor(0.1))
+        self.layers = nn.Sequential(
+            nn.Conv2d(1, 32, 3, stride=2, padding=1),
+            nn.ReLU(),
+            nn.GroupNorm(4, 32),
+            SkipConnect(
+                nn.Conv2d(32, 64, 3, stride=2, padding=1),
+                nn.ReLU(),
+                nn.GroupNorm(4, 64),
+                SkipConnect(
+                    nn.Conv2d(64, 64, 3, padding=1),
+                    nn.ReLU(),
+                    nn.GroupNorm(4, 64),
+                    nn.Conv2d(64, 64, 3, padding=1),
+                    nn.ReLU(),
+                    nn.GroupNorm(4, 64),
+                ),
+                nn.ConvTranspose2d(128, 32, 3, stride=2, padding=1, output_padding=1),
+                nn.ReLU(),
+                nn.GroupNorm(4, 32),
+            ),
+            nn.ConvTranspose2d(64, 64, 3, stride=2, padding=1, output_padding=1),
+            nn.ReLU(),
+            nn.GroupNorm(4, 64),
+            nn.Conv2d(64, num_options, 3, padding=1),
+        )
+
+    def forward(self, x):
+        x = self.layers(x) * self.output_scale
+        new_shape = (x.shape[0], self.num_options, 1, *x.shape[2:])
+        return x.view(new_shape)
+
+
 class SkipConnect(nn.Sequential):
     def forward(self, x):
         return torch.cat([super().forward(x), x], dim=1)
