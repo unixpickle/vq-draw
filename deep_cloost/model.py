@@ -122,7 +122,7 @@ class Encoder(nn.Module):
 
     def apply_stage(self, idx, x):
         x = x.detach()*self._grad_decay + x * (1 - self._grad_decay)
-        res = x[:, None] + self.refiner(x)
+        res = self.refiner(x)
         if idx == 0:
             res = res + self.bias
         return res
@@ -168,16 +168,17 @@ class CIFARRefiner(nn.Module):
         )
 
     def forward(self, x):
+        original = x[:, None]
         x = self.layers(x) * self.output_scale
-        new_shape = (x.shape[0], self.num_options, 3, *x.shape[2:])
-        return x.view(new_shape)
+        residuals = x.view(x.shape[0], self.num_options, 3, *x.shape[2:])
+        return residuals + original
 
 
 class MNISTRefiner(nn.Module):
     def __init__(self, num_options):
         super().__init__()
         self.num_options = num_options
-        self.output_scale = nn.Parameter(torch.tensor(0.1))
+        self.mask_bias = nn.Parameter(torch.tensor(1.0))
         self.layers = nn.Sequential(
             nn.Conv2d(1, 32, 3, stride=2, padding=1),
             nn.ReLU(),
@@ -193,13 +194,16 @@ class MNISTRefiner(nn.Module):
             nn.ReLU(),
             nn.ConvTranspose2d(64, 64, 3, stride=2, padding=1, output_padding=1),
             nn.ReLU(),
-            nn.Conv2d(64, num_options, 3, padding=1),
+            nn.Conv2d(64, num_options * 2, 3, padding=1),
         )
 
     def forward(self, x):
-        x = self.layers(x) * self.output_scale
-        new_shape = (x.shape[0], self.num_options, 1, *x.shape[2:])
-        return x.view(new_shape)
+        original = x[:, None]
+        x = self.layers(x)
+        x = x.view(x.shape[0], 2, self.num_options, *original.shape[2:])
+        new_outputs = x[:, 0].contiguous()
+        masks = torch.sigmoid(x[:, 1].contiguous() + self.mask_bias)
+        return original * masks + new_outputs * (1 - masks)
 
 
 class SkipConnect(nn.Sequential):
