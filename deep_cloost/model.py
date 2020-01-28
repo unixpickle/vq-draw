@@ -1,3 +1,4 @@
+from abc import abstractmethod
 import math
 
 import torch
@@ -121,14 +122,26 @@ class Encoder(nn.Module):
         }
 
     def apply_stage(self, idx, x):
-        x = x.detach()*self._grad_decay + x * (1 - self._grad_decay)
-        res = x[:, None] + self.refiner(x)
+        x = x.detach() * self._grad_decay + x * (1 - self._grad_decay)
+        res = self.refiner(x)
         if idx == 0:
             res = res + self.bias
         return res
 
 
-class CIFARRefiner(nn.Module):
+class ResidualRefiner(nn.Module):
+    @abstractmethod
+    def residuals(self, x):
+        """
+        Generate a set of potential deltas to the input.
+        """
+        pass
+
+    def forward(self, x):
+        return x[:, None] + self.residuals(x)
+
+
+class CIFARRefiner(ResidualRefiner):
     def __init__(self, num_options):
         super().__init__()
         self.num_options = num_options
@@ -167,13 +180,13 @@ class CIFARRefiner(nn.Module):
             nn.Conv2d(3+128, num_options*3, 3, padding=1),
         )
 
-    def forward(self, x):
+    def residuals(self, x):
         x = self.layers(x) * self.output_scale
         new_shape = (x.shape[0], self.num_options, 3, *x.shape[2:])
         return x.view(new_shape)
 
 
-class MNISTRefiner(nn.Module):
+class MNISTRefiner(ResidualRefiner):
     def __init__(self, num_options):
         super().__init__()
         self.num_options = num_options
@@ -196,7 +209,7 @@ class MNISTRefiner(nn.Module):
             nn.Conv2d(64, num_options, 3, padding=1),
         )
 
-    def forward(self, x):
+    def residuals(self, x):
         x = self.layers(x) * self.output_scale
         new_shape = (x.shape[0], self.num_options, 1, *x.shape[2:])
         return x.view(new_shape)
