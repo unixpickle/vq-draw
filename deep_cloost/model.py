@@ -119,6 +119,7 @@ class Encoder(nn.Module):
             'choice': torch.mean(torch.min(losses, dim=-1)[0]),
             'all': torch.mean(losses),
             'entropy': entropy,
+            'used': len(set(codes.cpu().numpy())),
         }
 
     def apply_stage(self, idx, x):

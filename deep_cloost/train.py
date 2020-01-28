@@ -63,7 +63,8 @@ class Trainer(ABC):
 
         self.train_loader, self.test_loader = self.create_datasets()
         self.model = self.create_or_load_model()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.args.lr, betas=(0.9, 0.99), eps=1e-5)
+        self.optimizer = optim.Adam(self.model.parameters(),
+                                    lr=self.args.lr, betas=(0.9, 0.99), eps=1e-5)
 
     def arg_parser(self):
         """
@@ -101,8 +102,9 @@ class Trainer(ABC):
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-            print('step %d: train=%f test=%f entropy=%f' %
-                  (i, losses['final'].item(), test_losses['final'].item(), losses['entropy']))
+            print('step %d: train=%f test=%f entropy=%f used=%f' %
+                  (i, losses['final'].item(), test_losses['final'].item(), losses['entropy'],
+                   losses['used']))
             if not i % self.args.save_interval:
                 self.save_checkpoint()
                 self.save_renderings()
