@@ -102,7 +102,7 @@ class Trainer(ABC):
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-            print('step %d: train=%f test=%f entropy=%f used=%f' %
+            print('step %d: train=%f test=%f entropy=%f used=%d' %
                   (i, losses['final'].item(), test_losses['final'].item(), losses['entropy'],
                    losses['used']))
             if not i % self.args.save_interval:
