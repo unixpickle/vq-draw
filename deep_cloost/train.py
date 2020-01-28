@@ -63,7 +63,7 @@ class Trainer(ABC):
 
         self.train_loader, self.test_loader = self.create_datasets()
         self.model = self.create_or_load_model()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.args.lr)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.args.lr, betas=(0.9, 0.99), eps=1e-5)
 
     def arg_parser(self):
         """
