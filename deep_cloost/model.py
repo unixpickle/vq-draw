@@ -239,7 +239,7 @@ class CIFARRefiner(ResidualRefiner):
 
     def residuals(self, x, stage):
         x = self.layers(x)
-        x = x + self.stage_embedding[stage][:, None, None]
+        x = x * self.stage_embedding[stage][:, None, None]
         x = self.output_layer(x)
         x = x * self.output_scale
         return x.view(x.shape[0], self.num_options, 3, *x.shape[2:])
