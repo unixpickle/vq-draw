@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import abstractmethod, abstractproperty
 import math
 
 import torch
@@ -6,11 +6,98 @@ import torch.nn as nn
 import torch.utils.checkpoint
 
 
-class Encoder(nn.Module):
-    def __init__(self, shape, options, refiner, loss_fn, num_stages=0, grad_decay=0):
+class AbstractEncoder(nn.Module):
+    def __init__(self, shape, options):
         super().__init__()
         self.shape = shape
         self.options = options
+
+    @abstractmethod
+    def forward(self, inputs, checkpoint=False, current_outputs=None):
+        """
+        Apply the encoder and track the corresponding
+        reconstructions.
+
+        Args:
+            inputs: a Tensor of inputs to encode.
+            checkpoint: if True, use sqrt(stages) memory
+              for longer reconstruction sequences.
+            current_outputs: if specified, this is a
+              Tensor of the initial reconstructions.
+
+        Returns:
+            A tuple (encodings, reconstructions, losses):
+              encodings: an [N x num_stages] tensor.
+              reconstructions: a tensor like inputs.
+              losses: an [N x num_stages x options] tensor.
+        """
+        pass
+
+    @abstractmethod
+    def decode(self, codes, current_outputs=None):
+        pass
+
+    @abstractproperty
+    def num_stages(self):
+        pass
+
+    def reconstruct(self, inputs, **kwargs):
+        return self(inputs)[1]
+
+    def train_losses(self, inputs, **kwargs):
+        losses = self(inputs, **kwargs)[-1]
+        codes = torch.argmin(losses, dim=-1).view(-1)
+        counts = torch.tensor([torch.sum(codes == i) for i in range(self.options)])
+        probs = counts.float() / float(codes.shape[0])
+        entropy = -torch.sum(torch.log(probs.clamp(1e-8, 1)) * probs)
+        return {
+            'final': torch.mean(torch.min(losses[:, -1], dim=-1)[0]),
+            'choice': torch.mean(torch.min(losses, dim=-1)[0]),
+            'all': torch.mean(losses),
+            'entropy': entropy,
+            'used': len(set(codes.cpu().numpy())),
+        }
+
+
+class SegmentedEncoder(AbstractEncoder):
+    def __init__(self, encoders):
+        super().__init__(encoders[0].shape, encoders[0].options)
+        self.encoders = encoders
+        for i, enc in enumerate(encoders):
+            self.add_module('encoder%d' % i, enc)
+
+    @property
+    def num_stages(self):
+        return sum(e.num_stages for e in self.encoders)
+
+    def forward(self, inputs, checkpoint=False, current_outputs=None):
+        encodings = []
+        all_losses = []
+        for enc in self.encoders:
+            encs, current_outputs, losses = enc(inputs,
+                                                checkpoint=checkpoint,
+                                                current_outputs=current_outputs)
+            encodings.append(encs)
+            all_losses.append(losses)
+        return (torch.cat(encodings, dim=-1),
+                current_outputs,
+                torch.cat(all_losses, dim=1))
+
+    def decode(self, codes, current_outputs=None):
+        if current_outputs is None:
+            current_outputs = torch.zeros((codes.shape[0],) + self.shape, device=codes.device)
+        start_idx = 0
+        for enc in self.encoders:
+            end_idx = start_idx + enc.num_stages
+            current_outputs = enc.decode(codes[:, start_idx:end_idx],
+                                         current_outputs=current_outputs)
+            start_idx = end_idx
+        return current_outputs
+
+
+class Encoder(AbstractEncoder):
+    def __init__(self, shape, options, refiner, loss_fn, num_stages=0, grad_decay=0):
+        super().__init__(shape, options)
         self.refiner = refiner
         self.loss_fn = loss_fn
         self.bias = nn.Parameter(torch.zeros(options, *shape))
@@ -33,23 +120,9 @@ class Encoder(nn.Module):
     def grad_decay(self, x):
         self._grad_decay.copy_(torch.zeros_like(self._grad_decay) + x)
 
-    def forward(self, inputs, checkpoint=False):
-        """
-        Apply the encoder and track the corresponding
-        reconstructions.
-
-        Args:
-            inputs: a Tensor of inputs to encode.
-            checkpoint: if True, use sqrt(stages) memory
-              for longer reconstruction sequences.
-
-        Returns:
-            A tuple (encodings, reconstructions, losses):
-              encodings: an [N x num_stages] tensor.
-              reconstructions: a tensor like inputs.
-              losses: an [N x num_stages x options] tensor.
-        """
-        current_outputs = torch.zeros_like(inputs)
+    def forward(self, inputs, checkpoint=False, current_outputs=None):
+        if current_outputs is None:
+            current_outputs = torch.zeros_like(inputs)
         interval = int(math.sqrt(self.num_stages))
         if not checkpoint or interval < 1:
             return self._forward_range(range(self.num_stages), inputs, current_outputs)
@@ -88,39 +161,20 @@ class Encoder(nn.Module):
             encodings.append(indices)
             current_outputs = new_outputs[range(new_outputs.shape[0]), indices]
         if len(encodings) == 0:
-            return torch.zeros((inputs.shape[0], 0), dtype=torch.long), current_outputs
+            return (torch.zeros(inputs.shape[0], 0, dtype=torch.long),
+                    current_outputs,
+                    torch.zeros(inputs.shape[0], 0, self.options))
         return (torch.stack(encodings, dim=-1),
                 current_outputs,
                 torch.stack(all_losses, dim=1))
 
-    def decode(self, codes):
-        current_outputs = torch.zeros((codes.shape[0],) + self.shape, device=codes.device)
+    def decode(self, codes, current_outputs=None):
+        if current_outputs is None:
+            current_outputs = torch.zeros((codes.shape[0],) + self.shape, device=codes.device)
         for i in range(self.num_stages):
             new_outputs = self.apply_stage(i, current_outputs)
             current_outputs = new_outputs[range(new_outputs.shape[0]), codes[:, i]]
         return current_outputs
-
-    def reconstruct(self, inputs, batch=None):
-        if batch is None:
-            return self(inputs)[1]
-        results = []
-        for i in range(0, inputs.shape[0], batch):
-            results.append(self(inputs[i:i+batch])[1])
-        return torch.cat(results, dim=0)
-
-    def train_losses(self, inputs, **kwargs):
-        losses = self(inputs, **kwargs)[-1]
-        codes = torch.argmin(losses, dim=-1).view(-1)
-        counts = torch.tensor([torch.sum(codes == i) for i in range(self.options)])
-        probs = counts.float() / float(codes.shape[0])
-        entropy = -torch.sum(torch.log(probs.clamp(1e-8, 1)) * probs)
-        return {
-            'final': torch.mean(torch.min(losses[:, -1], dim=-1)[0]),
-            'choice': torch.mean(torch.min(losses, dim=-1)[0]),
-            'all': torch.mean(losses),
-            'entropy': entropy,
-            'used': len(set(codes.cpu().numpy())),
-        }
 
     def apply_stage(self, idx, x):
         x = x.detach() * self._grad_decay + x * (1 - self._grad_decay)
