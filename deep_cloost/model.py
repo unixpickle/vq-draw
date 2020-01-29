@@ -178,7 +178,7 @@ class Encoder(AbstractEncoder):
 
     def apply_stage(self, idx, x):
         x = x.detach() * self._grad_decay + x * (1 - self._grad_decay)
-        res = self.refiner(x)
+        res = self.refiner(x, idx)
         if idx == 0:
             res = res + self.bias
         return res
@@ -186,21 +186,22 @@ class Encoder(AbstractEncoder):
 
 class ResidualRefiner(nn.Module):
     @abstractmethod
-    def residuals(self, x):
+    def residuals(self, x, stage):
         """
         Generate a set of potential deltas to the input.
         """
         pass
 
-    def forward(self, x):
-        return x[:, None] + self.residuals(x)
+    def forward(self, x, stage):
+        return x[:, None] + self.residuals(x, stage)
 
 
 class CIFARRefiner(ResidualRefiner):
-    def __init__(self, num_options):
+    def __init__(self, num_options, max_stages):
         super().__init__()
         self.num_options = num_options
         self.output_scale = nn.Parameter(torch.tensor(0.01))
+        self.stage_embedding = nn.Parameter(torch.randn(max_stages, 128))
         self.layers = nn.Sequential(
             SkipConnect(
                 nn.Conv2d(3, 64, 3, stride=2, padding=1),
@@ -232,13 +233,16 @@ class CIFARRefiner(ResidualRefiner):
                 nn.GroupNorm(8, 128),
                 nn.Tanh(),
             ),
-            nn.Conv2d(3+128, num_options*3, 3, padding=1),
+            nn.Conv2d(3+128, 128, 3, padding=1),
         )
+        self.output_layer = nn.Conv2d(128, 3*self.num_options, 3, padding=1)
 
-    def residuals(self, x):
-        x = self.layers(x) * self.output_scale
-        new_shape = (x.shape[0], self.num_options, 3, *x.shape[2:])
-        return x.view(new_shape)
+    def residuals(self, x, stage):
+        x = self.layers(x)
+        x = x + self.stage_embedding[stage][:, None, None]
+        x = self.output_layer(x)
+        x = x * self.output_scale
+        return x.view(x.shape[0], self.num_options, 3, *x.shape[2:])
 
 
 class MNISTRefiner(ResidualRefiner):
@@ -264,7 +268,7 @@ class MNISTRefiner(ResidualRefiner):
             nn.Conv2d(64, num_options, 3, padding=1),
         )
 
-    def residuals(self, x):
+    def residuals(self, x, stage):
         x = self.layers(x) * self.output_scale
         new_shape = (x.shape[0], self.num_options, 1, *x.shape[2:])
         return x.view(new_shape)

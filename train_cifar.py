@@ -43,7 +43,7 @@ class CIFARTrainer(Trainer):
     def create_model(self):
         return Encoder(shape=self.shape,
                        options=self.args.options,
-                       refiner=CIFARRefiner(self.args.options),
+                       refiner=CIFARRefiner(self.args.options, self.args.stages),
                        loss_fn=MSELoss())
 
 
