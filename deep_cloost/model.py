@@ -243,32 +243,31 @@ class CIFARRefiner(ResidualRefiner):
 
 
 class MNISTRefiner(ResidualRefiner):
-    def __init__(self, num_options):
+    def __init__(self, num_options, max_stages):
         super().__init__()
         self.num_options = num_options
         self.output_scale = nn.Parameter(torch.tensor(0.1))
-        self.layers = nn.Sequential(
-            nn.Conv2d(1, 32, 3, stride=2, padding=1),
+        self.layers = StagedSequential(
+            StagedConv2d(max_stages, 1, 32, 3, stride=2, padding=1),
             nn.ReLU(),
-            nn.Conv2d(32, 64, 3, stride=2, padding=1),
+            StagedConv2d(max_stages, 32, 64, 3, stride=2, padding=1),
             nn.ReLU(),
-            nn.Conv2d(64, 128, 3, padding=1),
+            StagedConv2d(max_stages, 64, 128, 3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(128, 128, 3, padding=1),
+            StagedConv2d(max_stages, 128, 128, 3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(128, 64, 3, padding=1),
+            StagedConv2d(max_stages, 128, 64, 3, padding=1),
             nn.ReLU(),
-            nn.ConvTranspose2d(64, 64, 3, stride=2, padding=1, output_padding=1),
+            StagedConvTranspose2d(max_stages, 64, 64, 3, stride=2, padding=1, output_padding=1),
             nn.ReLU(),
-            nn.ConvTranspose2d(64, 64, 3, stride=2, padding=1, output_padding=1),
+            StagedConvTranspose2d(max_stages, 64, 64, 3, stride=2, padding=1, output_padding=1),
             nn.ReLU(),
             nn.Conv2d(64, num_options, 3, padding=1),
         )
 
     def residuals(self, x, stage):
-        x = self.layers(x) * self.output_scale
-        new_shape = (x.shape[0], self.num_options, 1, *x.shape[2:])
-        return x.view(new_shape)
+        x = self.layers(x, stage) * self.output_scale
+        return x.view(x.shape[0], self.num_options, 1, *x.shape[2:])
 
 
 class StagedBlock(nn.Module):

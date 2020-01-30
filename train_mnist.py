@@ -45,7 +45,7 @@ class MNISTTrainer(Trainer):
     def create_model(self):
         return Encoder(shape=self.shape,
                        options=self.args.options,
-                       refiner=MNISTRefiner(self.args.options),
+                       refiner=MNISTRefiner(self.args.options, self.args.stages),
                        loss_fn=MSELoss())
 
 
