@@ -201,47 +201,44 @@ class CIFARRefiner(ResidualRefiner):
         super().__init__()
         self.num_options = num_options
         self.output_scale = nn.Parameter(torch.tensor(0.01))
-        self.stage_embedding = nn.Parameter(torch.randn(max_stages, 128))
-        self.layers = nn.Sequential(
+        self.layers = StagedSequential(
             SkipConnect(
-                nn.Conv2d(3, 64, 3, stride=2, padding=1),
+                StagedConv2d(max_stages, 3, 64, 3, stride=2, padding=1),
                 nn.GroupNorm(8, 64),
                 nn.Tanh(),
                 SkipConnect(
-                    nn.Conv2d(64, 128, 3, stride=2, padding=1),
+                    StagedConv2d(max_stages, 64, 128, 3, stride=2, padding=1),
                     nn.GroupNorm(8, 128),
                     nn.Tanh(),
                     SkipConnect(
-                        nn.Conv2d(128, 256, 3, padding=1),
+                        StagedConv2d(max_stages, 128, 256, 3, padding=1),
                         nn.GroupNorm(8, 256),
                         nn.Tanh(),
-                        nn.Conv2d(256, 256, 3, padding=1),
+                        StagedConv2d(max_stages, 256, 256, 3, padding=1),
                         nn.GroupNorm(8, 256),
                         nn.Tanh(),
-                        nn.Conv2d(256, 128, 3, padding=1),
+                        StagedConv2d(max_stages, 256, 128, 3, padding=1),
                         nn.GroupNorm(8, 128),
                         nn.Tanh(),
-                        nn.Conv2d(128, 128, 3, padding=1),
+                        StagedConv2d(max_stages, 128, 128, 3, padding=1),
                         nn.GroupNorm(8, 128),
                         nn.Tanh(),
                     ),
-                    nn.ConvTranspose2d(128+128, 128, 3, stride=2, padding=1, output_padding=1),
+                    StagedConvTranspose2d(max_stages, 128+128, 128, 3, stride=2, padding=1,
+                                          output_padding=1),
                     nn.GroupNorm(8, 128),
                     nn.Tanh(),
                 ),
-                nn.ConvTranspose2d(64+128, 128, 3, stride=2, padding=1, output_padding=1),
+                StagedConvTranspose2d(max_stages, 64+128, 128, 3, stride=2, padding=1,
+                                      output_padding=1),
                 nn.GroupNorm(8, 128),
                 nn.Tanh(),
             ),
-            nn.Conv2d(3+128, 128, 3, padding=1),
+            nn.Conv2d(3+128, 3*self.num_options, 3, padding=1),
         )
-        self.output_layer = nn.Conv2d(128, 3*self.num_options, 3, padding=1)
 
     def residuals(self, x, stage):
-        x = self.layers(x)
-        x = x * self.stage_embedding[stage][:, None, None]
-        x = self.output_layer(x)
-        x = x * self.output_scale
+        x = self.layers(x, stage) * self.output_scale
         return x.view(x.shape[0], self.num_options, 3, *x.shape[2:])
 
 
@@ -274,6 +271,42 @@ class MNISTRefiner(ResidualRefiner):
         return x.view(new_shape)
 
 
-class SkipConnect(nn.Sequential):
-    def forward(self, x):
-        return torch.cat([super().forward(x), x], dim=1)
+class StagedBlock(nn.Module):
+    @abstractmethod
+    def forward(self, x, stage):
+        pass
+
+
+class StagedSequential(StagedBlock, nn.Sequential):
+    def forward(self, x, stage):
+        for b in self:
+            if isinstance(b, StagedBlock):
+                x = b(x, stage)
+            else:
+                x = b(x)
+        return x
+
+
+class StagedConv2d(StagedBlock):
+    def __init__(self, num_options, *args, **kwargs):
+        super().__init__()
+        self.conv = nn.Conv2d(*args, **kwargs)
+        self.embeddings = nn.Parameter(torch.randn(num_options, self.conv.out_channels))
+
+    def forward(self, x, stage):
+        return self.conv(x) * self.embeddings[stage, :, None, None]
+
+
+class StagedConvTranspose2d(StagedBlock):
+    def __init__(self, num_options, *args, **kwargs):
+        super().__init__()
+        self.conv = nn.ConvTranspose2d(*args, **kwargs)
+        self.embeddings = nn.Parameter(torch.randn(num_options, self.conv.out_channels))
+
+    def forward(self, x, stage):
+        return self.conv(x) * self.embeddings[stage, :, None, None]
+
+
+class SkipConnect(StagedSequential):
+    def forward(self, x, stage):
+        return torch.cat([super().forward(x, stage), x], dim=1)
