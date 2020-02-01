@@ -201,40 +201,43 @@ class CIFARRefiner(ResidualRefiner):
         super().__init__()
         self.num_options = num_options
         self.output_scale = nn.Parameter(torch.tensor(0.01))
+
+        def res_block():
+            return ResidualBlock(
+                nn.ReLU(),
+                nn.GroupNorm(8, 256),
+                StagedConv2d(max_stages, 256, 256, 3, padding=1),
+                nn.ReLU(),
+                nn.GroupNorm(8, 256),
+                StagedConv2d(max_stages, 256, 256, 3, padding=1),
+            )
+
         self.layers = StagedSequential(
-            SkipConnect(
-                StagedConv2d(max_stages, 3, 64, 3, stride=2, padding=1),
-                nn.GroupNorm(8, 64),
-                nn.Tanh(),
-                SkipConnect(
-                    StagedConv2d(max_stages, 64, 128, 3, stride=2, padding=1),
-                    nn.GroupNorm(8, 128),
-                    nn.Tanh(),
-                    SkipConnect(
-                        StagedConv2d(max_stages, 128, 256, 3, padding=1),
-                        nn.GroupNorm(8, 256),
-                        nn.Tanh(),
-                        StagedConv2d(max_stages, 256, 256, 3, padding=1),
-                        nn.GroupNorm(8, 256),
-                        nn.Tanh(),
-                        StagedConv2d(max_stages, 256, 128, 3, padding=1),
-                        nn.GroupNorm(8, 128),
-                        nn.Tanh(),
-                        StagedConv2d(max_stages, 128, 128, 3, padding=1),
-                        nn.GroupNorm(8, 128),
-                        nn.Tanh(),
-                    ),
-                    StagedConvTranspose2d(max_stages, 128+128, 128, 3, stride=2, padding=1,
-                                          output_padding=1),
-                    nn.GroupNorm(8, 128),
-                    nn.Tanh(),
-                ),
-                StagedConvTranspose2d(max_stages, 64+128, 128, 3, stride=2, padding=1,
-                                      output_padding=1),
-                nn.GroupNorm(8, 128),
-                nn.Tanh(),
-            ),
-            nn.Conv2d(3+128, 3*self.num_options, 3, padding=1),
+            # Reduce spatial resolution.
+            nn.Conv2d(3, 64, 3, stride=2, padding=1),
+            nn.ReLU(),
+            nn.GroupNorm(8, 64),
+            StagedConv2d(max_stages, 64, 128, 3, stride=2, padding=1),
+            nn.ReLU(),
+            nn.GroupNorm(8, 128),
+
+            # Process data at lower spatial resolution.
+            StagedConv2d(max_stages, 128, 256, 3, padding=1),
+            res_block(),
+            res_block(),
+
+            # Increase spacial resolution back to original.
+            StagedConvTranspose2d(max_stages, 256, 128, 3, stride=2, padding=1,
+                                  output_padding=1),
+            nn.ReLU(),
+            nn.GroupNorm(8, 128),
+            StagedConvTranspose2d(max_stages, 128, 128, 3, stride=2, padding=1,
+                                  output_padding=1),
+            nn.ReLU(),
+            nn.GroupNorm(8, 128),
+
+            # Generate option outputs.
+            nn.Conv2d(128, 3 * self.num_options, 3, padding=1),
         )
 
     def residuals(self, x, stage):
@@ -309,3 +312,8 @@ class StagedConvTranspose2d(StagedBlock):
 class SkipConnect(StagedSequential):
     def forward(self, x, stage):
         return torch.cat([super().forward(x, stage), x], dim=1)
+
+
+class ResidualBlock(StagedSequential):
+    def forward(self, x, stage):
+        return super().forward(x, stage) + x
