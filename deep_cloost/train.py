@@ -7,8 +7,6 @@ import numpy as np
 import torch
 import torch.optim as optim
 
-from .model import SegmentedEncoder
-
 
 def gather_samples(loader, num_samples):
     """
@@ -75,7 +73,6 @@ class Trainer(ABC):
         parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
         parser.add_argument('--batch', default=128, type=int)
         parser.add_argument('--stages', default=self.default_stages, type=int)
-        parser.add_argument('--segments', default=1, type=int)
         parser.add_argument('--options', default=64, type=int)
         parser.add_argument('--checkpoint', default=self.default_checkpoint, type=str)
         parser.add_argument('--save-interval', default=10, type=int)
@@ -118,7 +115,7 @@ class Trainer(ABC):
         Create the model and load it from a file if there
         is a saved checkpoint.
         """
-        model = SegmentedEncoder([self.create_model() for _ in range(self.args.segments)])
+        model = self.create_model()
         if os.path.exists(self.args.checkpoint):
             print('=> loading encoder model from checkpoint...')
             model.load_state_dict(torch.load(self.args.checkpoint, map_location='cpu'))
