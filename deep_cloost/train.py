@@ -92,10 +92,10 @@ class Trainer(ABC):
         loaders = zip(self._cycle_batches(self.train_loader),
                       self._cycle_batches(self.test_loader))
         for i, (train_batch, test_batch) in enumerate(loaders):
-            losses = self.model.train_losses(train_batch, checkpoint=self.args.grad_checkpoint)
+            losses = self.model.train_quantities(train_batch, checkpoint=self.args.grad_checkpoint)
             with torch.no_grad():
-                test_losses = self.model.train_losses(test_batch,
-                                                      checkpoint=self.args.grad_checkpoint)
+                test_losses = self.model.train_quantities(test_batch,
+                                                          checkpoint=self.args.grad_checkpoint)
             loss = (losses['choice'] +
                     losses['final'] * self.args.final_coeff +
                     losses['all'] * self.args.aux_coeff)

@@ -7,6 +7,27 @@ import torch.utils.checkpoint
 
 
 class Encoder(nn.Module):
+    """
+    The core encoder/decoder algorithm.
+
+    This module uses a refinement network to iteratively
+    generate better and better reconstructions of inputs,
+    saving choices along the way as latent codes.
+
+    Args:
+        shape: the shape of the Tensors encoded by this
+          model (not including the batch).
+        options: the number of options at each stage,
+          which must be matched by the refiner.
+        refiner: a module which proposes refinements.
+          Inputs are [N x *shape].
+          Outputs are [N x options x *shape].
+        loss_fn: a LossFunc to use as the refinement
+          criterion.
+        num_stages: initial number of stages.
+        grad_decay: initial gradient decay.
+    """
+
     def __init__(self, shape, options, refiner, loss_fn, num_stages=0, grad_decay=0):
         super().__init__()
         self.shape = shape
@@ -19,6 +40,10 @@ class Encoder(nn.Module):
 
     @property
     def num_stages(self):
+        """
+        Get the number of stages used for forward passes
+        through the model.
+        """
         return self._stages.item()
 
     @num_stages.setter
@@ -27,13 +52,17 @@ class Encoder(nn.Module):
 
     @property
     def grad_decay(self):
+        """
+        Get a gradient decay factor, from 0 to 1, where 1
+        means that no gradients flow back through stages.
+        """
         return self._grad_decay.item()
 
     @grad_decay.setter
     def grad_decay(self, x):
         self._grad_decay.copy_(torch.zeros_like(self._grad_decay) + x)
 
-    def forward(self, inputs, checkpoint=False, current_outputs=None):
+    def forward(self, inputs, checkpoint=False):
         """
         Apply the encoder and track the corresponding
         reconstructions.
@@ -42,8 +71,6 @@ class Encoder(nn.Module):
             inputs: a Tensor of inputs to encode.
             checkpoint: if True, use sqrt(stages) memory
               for longer reconstruction sequences.
-            current_outputs: if specified, this is a
-              Tensor of the initial reconstructions.
 
         Returns:
             A tuple (encodings, reconstructions, losses):
@@ -51,8 +78,7 @@ class Encoder(nn.Module):
               reconstructions: a tensor like inputs.
               losses: an [N x num_stages x options] tensor.
         """
-        if current_outputs is None:
-            current_outputs = torch.zeros_like(inputs)
+        current_outputs = torch.zeros_like(inputs)
         interval = int(math.sqrt(self.num_stages))
         if not checkpoint or interval < 1:
             return self._forward_range(range(self.num_stages), inputs, current_outputs)
@@ -99,6 +125,10 @@ class Encoder(nn.Module):
                 torch.stack(all_losses, dim=1))
 
     def apply_stage(self, idx, x):
+        """
+        Apply a stage (number idx) to a batch of inputs x
+        and get a batch of refinement proposals.
+        """
         x = x.detach() * self._grad_decay + x * (1 - self._grad_decay)
         res = self.refiner(x, idx)
         if idx == 0:
@@ -106,9 +136,16 @@ class Encoder(nn.Module):
         return res
 
     def reconstruct(self, inputs, **kwargs):
-        return self(inputs)[1]
+        """
+        Reconstruct the inputs by encoding and decoding.
+        """
+        return self(inputs, **kwargs)[1]
 
-    def train_losses(self, inputs, **kwargs):
+    def train_quantities(self, inputs, **kwargs):
+        """
+        Get a dict of quantities which are useful for
+        training, including losses and entropy.
+        """
         losses = self(inputs, **kwargs)[-1]
         codes = torch.argmin(losses, dim=-1).view(-1)
         counts = torch.tensor([torch.sum(codes == i) for i in range(self.options)])
@@ -122,11 +159,18 @@ class Encoder(nn.Module):
             'used': len(set(codes.cpu().numpy())),
         }
 
-    def decode(self, codes, current_outputs=None, num_stages=None):
+    def decode(self, codes, num_stages=None):
+        """
+        Create reconstructions for some latent codes.
+
+        Args:
+            codes: a long Tensor of shape [N x stages].
+            num_stages: the number of decoding stages to
+              run (useful for partial reconstructions).
+        """
         if num_stages is None:
             num_stages = self.num_stages
-        if current_outputs is None:
-            current_outputs = torch.zeros((codes.shape[0],) + self.shape, device=codes.device)
+        current_outputs = torch.zeros((codes.shape[0],) + self.shape, device=codes.device)
         for i in range(num_stages):
             new_outputs = self.apply_stage(i, current_outputs)
             current_outputs = new_outputs[range(new_outputs.shape[0]), codes[:, i]]
@@ -134,6 +178,10 @@ class Encoder(nn.Module):
 
 
 class ResidualRefiner(nn.Module):
+    """
+    Base class for refiner modules that compute additive
+    residuals for the inputs.
+    """
     @abstractmethod
     def residuals(self, x, stage):
         """
@@ -146,6 +194,10 @@ class ResidualRefiner(nn.Module):
 
 
 class CIFARRefiner(ResidualRefiner):
+    """
+    A refiner module appropriate for the CIFAR dataset.
+    """
+
     def __init__(self, num_options, max_stages):
         super().__init__()
         self.num_options = num_options
@@ -155,33 +207,33 @@ class CIFARRefiner(ResidualRefiner):
             return ResidualBlock(
                 nn.ReLU(),
                 nn.GroupNorm(8, 256),
-                StagedConv2d(max_stages, 256, 256, 3, padding=1),
+                CondConv2d(max_stages, 256, 256, 3, padding=1),
                 nn.ReLU(),
                 nn.GroupNorm(8, 256),
-                StagedConv2d(max_stages, 256, 256, 3, padding=1),
+                CondConv2d(max_stages, 256, 256, 3, padding=1),
             )
 
-        self.layers = StagedSequential(
+        self.layers = Sequential(
             # Reduce spatial resolution.
             nn.Conv2d(3, 64, 3, stride=2, padding=1),
             nn.ReLU(),
             nn.GroupNorm(8, 64),
-            StagedConv2d(max_stages, 64, 128, 3, stride=2, padding=1),
+            CondConv2d(max_stages, 64, 128, 3, stride=2, padding=1),
             nn.ReLU(),
             nn.GroupNorm(8, 128),
 
             # Process data at lower spatial resolution.
-            StagedConv2d(max_stages, 128, 256, 3, padding=1),
+            CondConv2d(max_stages, 128, 256, 3, padding=1),
             res_block(),
             res_block(),
 
             # Increase spacial resolution back to original.
-            StagedConvTranspose2d(max_stages, 256, 128, 3, stride=2, padding=1,
-                                  output_padding=1),
+            CondConvTranspose2d(max_stages, 256, 128, 3, stride=2, padding=1,
+                                output_padding=1),
             nn.ReLU(),
             nn.GroupNorm(8, 128),
-            StagedConvTranspose2d(max_stages, 128, 128, 3, stride=2, padding=1,
-                                  output_padding=1),
+            CondConvTranspose2d(max_stages, 128, 128, 3, stride=2, padding=1,
+                                output_padding=1),
             nn.ReLU(),
             nn.GroupNorm(8, 128),
 
@@ -195,24 +247,28 @@ class CIFARRefiner(ResidualRefiner):
 
 
 class MNISTRefiner(ResidualRefiner):
+    """
+    A refiner module appropriate for the MNIST dataset.
+    """
+
     def __init__(self, num_options, max_stages):
         super().__init__()
         self.num_options = num_options
         self.output_scale = nn.Parameter(torch.tensor(0.1))
-        self.layers = StagedSequential(
-            StagedConv2d(max_stages, 1, 32, 3, stride=2, padding=1),
+        self.layers = Sequential(
+            CondConv2d(max_stages, 1, 32, 3, stride=2, padding=1),
             nn.ReLU(),
-            StagedConv2d(max_stages, 32, 64, 3, stride=2, padding=1),
+            CondConv2d(max_stages, 32, 64, 3, stride=2, padding=1),
             nn.ReLU(),
-            StagedConv2d(max_stages, 64, 128, 3, padding=1),
+            CondConv2d(max_stages, 64, 128, 3, padding=1),
             nn.ReLU(),
-            StagedConv2d(max_stages, 128, 128, 3, padding=1),
+            CondConv2d(max_stages, 128, 128, 3, padding=1),
             nn.ReLU(),
-            StagedConv2d(max_stages, 128, 64, 3, padding=1),
+            CondConv2d(max_stages, 128, 64, 3, padding=1),
             nn.ReLU(),
-            StagedConvTranspose2d(max_stages, 64, 64, 3, stride=2, padding=1, output_padding=1),
+            CondConvTranspose2d(max_stages, 64, 64, 3, stride=2, padding=1, output_padding=1),
             nn.ReLU(),
-            StagedConvTranspose2d(max_stages, 64, 64, 3, stride=2, padding=1, output_padding=1),
+            CondConvTranspose2d(max_stages, 64, 64, 3, stride=2, padding=1, output_padding=1),
             nn.ReLU(),
             nn.Conv2d(64, num_options, 3, padding=1),
         )
@@ -223,12 +279,21 @@ class MNISTRefiner(ResidualRefiner):
 
 
 class StagedBlock(nn.Module):
+    """
+    Base class for blocks which take the stage index as
+    one of the inputs.
+    """
     @abstractmethod
     def forward(self, x, stage):
         pass
 
 
-class StagedSequential(StagedBlock, nn.Sequential):
+class Sequential(StagedBlock, nn.Sequential):
+    """
+    A sequential block that passes the stage to other
+    staged blocks.
+    """
+
     def forward(self, x, stage):
         for b in self:
             if isinstance(b, StagedBlock):
@@ -238,7 +303,11 @@ class StagedSequential(StagedBlock, nn.Sequential):
         return x
 
 
-class StagedConv2d(StagedBlock):
+class CondConv2d(StagedBlock):
+    """
+    A stage-conditioned convolution operator.
+    """
+
     def __init__(self, num_options, *args, **kwargs):
         super().__init__()
         self.conv = nn.Conv2d(*args, **kwargs)
@@ -248,7 +317,11 @@ class StagedConv2d(StagedBlock):
         return self.conv(x) * self.embeddings[stage, :, None, None]
 
 
-class StagedConvTranspose2d(StagedBlock):
+class CondConvTranspose2d(StagedBlock):
+    """
+    A stage-conditioned transposed convolution operator.
+    """
+
     def __init__(self, num_options, *args, **kwargs):
         super().__init__()
         self.conv = nn.ConvTranspose2d(*args, **kwargs)
@@ -258,11 +331,11 @@ class StagedConvTranspose2d(StagedBlock):
         return self.conv(x) * self.embeddings[stage, :, None, None]
 
 
-class SkipConnect(StagedSequential):
-    def forward(self, x, stage):
-        return torch.cat([super().forward(x, stage), x], dim=1)
+class ResidualBlock(Sequential):
+    """
+    A sequential module that adds its outputs to its
+    inputs.
+    """
 
-
-class ResidualBlock(StagedSequential):
     def forward(self, x, stage):
         return super().forward(x, stage) + x

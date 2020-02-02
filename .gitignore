@@ -1,5 +1,6 @@
 *_data/
 *.pt
+.ipynb_checkpoints
 renderings.png
 samples.png
 __pycache__
