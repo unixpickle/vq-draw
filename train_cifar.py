@@ -18,7 +18,7 @@ class CIFARTrainer(Trainer):
 
     @property
     def default_stages(self):
-        return 60
+        return 50
 
     @property
     def shape(self):

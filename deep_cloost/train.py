@@ -73,10 +73,10 @@ class Trainer(ABC):
         Create an argument parser for CLI arguments.
         """
         parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-        parser.add_argument('--batch', default=32, type=int)
+        parser.add_argument('--batch', default=128, type=int)
         parser.add_argument('--stages', default=self.default_stages, type=int)
         parser.add_argument('--segments', default=1, type=int)
-        parser.add_argument('--options', default=8, type=int)
+        parser.add_argument('--options', default=64, type=int)
         parser.add_argument('--checkpoint', default=self.default_checkpoint, type=str)
         parser.add_argument('--save-interval', default=10, type=int)
 
@@ -84,7 +84,7 @@ class Trainer(ABC):
         parser.add_argument('--grad-decay', default=0, type=float)
         parser.add_argument('--lr', default=0.001, type=float)
         parser.add_argument('--aux-coeff', default=0.01, type=float)
-        parser.add_argument('--final-coeff', default=1, type=float)
+        parser.add_argument('--final-coeff', default=0, type=float)
 
         return parser
 
