@@ -168,10 +168,12 @@ class Encoder(AbstractEncoder):
                 current_outputs,
                 torch.stack(all_losses, dim=1))
 
-    def decode(self, codes, current_outputs=None):
+    def decode(self, codes, current_outputs=None, num_stages=None):
+        if num_stages is None:
+            num_stages = self.num_stages
         if current_outputs is None:
             current_outputs = torch.zeros((codes.shape[0],) + self.shape, device=codes.device)
-        for i in range(self.num_stages):
+        for i in range(num_stages):
             new_outputs = self.apply_stage(i, current_outputs)
             current_outputs = new_outputs[range(new_outputs.shape[0]), codes[:, i]]
         return current_outputs
