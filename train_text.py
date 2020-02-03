@@ -49,6 +49,12 @@ class WikiText2Trainer(TextTrainer):
                        refiner=refiner,
                        loss_fn=SoftmaxLoss())
 
+    def cycle_batches(self, loader):
+        for x in super().cycle_batches(loader):
+            if x.shape[-1] != self.args.bptt_len:
+                continue
+            yield x
+
 
 if __name__ == '__main__':
     WikiText2Trainer().main()
