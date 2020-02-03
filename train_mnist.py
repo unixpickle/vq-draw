@@ -3,12 +3,12 @@ from torchvision import datasets, transforms
 
 from deep_cloost.losses import MSELoss
 from deep_cloost.model import Encoder, MNISTRefiner
-from deep_cloost.train import Trainer
+from deep_cloost.train import ImageTrainer
 
 IMG_SIZE = 28
 
 
-class MNISTTrainer(Trainer):
+class MNISTTrainer(ImageTrainer):
     def denormalize_image(self, img):
         return img*0.3081 + 0.1307
 

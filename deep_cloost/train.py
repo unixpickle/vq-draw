@@ -110,7 +110,7 @@ class Trainer(ABC):
                    losses['used']))
             if not i % self.args.save_interval:
                 self.save_checkpoint()
-                self.save_renderings()
+                self.save_reconstructions()
                 self.save_samples()
 
     def create_or_load_model(self):
@@ -134,7 +134,71 @@ class Trainer(ABC):
         """
         torch.save(self.model.state_dict(), self.args.checkpoint)
 
-    def save_renderings(self):
+    @abstractmethod
+    def save_reconstructions(self):
+        """
+        Save reconstructions to a file.
+        """
+        pass
+
+    @abstractmethod
+    def save_samples(self):
+        """
+        Save random samples to a file.
+        """
+        pass
+
+    @abstractproperty
+    def default_checkpoint(self):
+        """
+        Get the default checkpoint name for the CLI.
+        """
+        pass
+
+    @abstractproperty
+    def default_stages(self):
+        """
+        Get the default number of stages for the CLI.
+        """
+        pass
+
+    @abstractproperty
+    def shape(self):
+        """
+        Get the shape of the encoded tensors.
+        """
+        pass
+
+    @abstractmethod
+    def create_datasets(self):
+        """
+        Create the (train, test) data loaders.
+        """
+        pass
+
+    @abstractmethod
+    def create_model(self):
+        """
+        Create a new Encoder model.
+        """
+        pass
+
+    def _cycle_batches(self, loader):
+        """
+        Utility to infinitely cycle through batches from a
+        data loader.
+        """
+        while True:
+            for batch, _ in loader:
+                yield batch.to(self.device)
+
+
+class ImageTrainer(Trainer):
+    """
+    A Trainer for image datasets.
+    """
+
+    def save_reconstructions(self):
         """
         Save a reconstruction grid to a file.
         """
@@ -183,47 +247,3 @@ class Trainer(ABC):
         of floats from 0 to 1.
         """
         pass
-
-    @abstractproperty
-    def default_checkpoint(self):
-        """
-        Get the default checkpoint name for the CLI.
-        """
-        pass
-
-    @abstractproperty
-    def default_stages(self):
-        """
-        Get the default number of stages for the CLI.
-        """
-        pass
-
-    @abstractproperty
-    def shape(self):
-        """
-        Get the shape of the encoded images.
-        """
-        pass
-
-    @abstractmethod
-    def create_datasets(self):
-        """
-        Create the (train, test) data loaders.
-        """
-        pass
-
-    @abstractmethod
-    def create_model(self):
-        """
-        Create a new Encoder model.
-        """
-        pass
-
-    def _cycle_batches(self, loader):
-        """
-        Utility to infinitely cycle through batches from a
-        data loader.
-        """
-        while True:
-            for batch, _ in loader:
-                yield batch.to(self.device)

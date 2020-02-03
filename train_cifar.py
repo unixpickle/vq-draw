@@ -3,12 +3,12 @@ from torchvision import datasets, transforms
 
 from deep_cloost.losses import MSELoss
 from deep_cloost.model import Encoder, CIFARRefiner
-from deep_cloost.train import Trainer
+from deep_cloost.train import ImageTrainer
 
 IMG_SIZE = 32
 
 
-class CIFARTrainer(Trainer):
+class CIFARTrainer(ImageTrainer):
     def denormalize_image(self, img):
         return img*0.5 + 0.5
 
