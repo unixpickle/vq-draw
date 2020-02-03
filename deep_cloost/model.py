@@ -15,7 +15,7 @@ class Encoder(nn.Module):
     saving choices along the way as latent codes.
 
     Args:
-        shape: the shape of the Tensors encoded by this
+        shape: the shape of the Tensors output by this
           model (not including the batch).
         options: the number of options at each stage,
           which must be matched by the refiner.
@@ -75,10 +75,11 @@ class Encoder(nn.Module):
         Returns:
             A tuple (encodings, reconstructions, losses):
               encodings: an [N x num_stages] tensor.
-              reconstructions: a tensor like inputs.
+              reconstructions: a tensor like of parameters
+                to predict the outputs.
               losses: an [N x num_stages x options] tensor.
         """
-        current_outputs = torch.zeros_like(inputs)
+        current_outputs = torch.zeros((inputs.shape[0], *self.shape))
         interval = int(math.sqrt(self.num_stages))
         if not checkpoint or interval < 1:
             return self._forward_range(range(self.num_stages), inputs, current_outputs)
@@ -278,6 +279,49 @@ class MNISTRefiner(ResidualRefiner):
         return x.view(x.shape[0], self.num_options, 1, *x.shape[2:])
 
 
+class TextRefiner(ResidualRefiner):
+    """
+    A refiner module appropriate for textual dataset.
+    """
+
+    def __init__(self, num_options, max_stages, seq_len, vocab_size):
+        super().__init__()
+        self.num_options = num_options
+        self.seq_len = seq_len
+        self.vocab_size = vocab_size
+        self.layers = Sequential(
+            # Embed inputs into low-dimensional space.
+            nn.Conv1d(vocab_size, 64, 1),
+            nn.ReLU(),
+
+            # Downsample
+            nn.Conv1d(64, 128, 3, stride=2, padding=1),
+            nn.ReLU(),
+            CondConv1d(max_stages, 128, 256, 3, stride=2, padding=1),
+            nn.ReLU(),
+
+            CondConv1d(max_stages, 256, 256, 3, stride=1, padding=1),
+            nn.ReLU(),
+            CondConv1d(max_stages, 256, 256, 3, stride=1, padding=1),
+            nn.ReLU(),
+
+            # Upsample
+            CondConvTranspose1d(max_stages, 256, 128, 3, stride=2, padding=1, output_padding=1),
+            nn.ReLU(),
+            CondConvTranspose1d(max_stages, 128, 64, 3, stride=2, padding=1, output_padding=1),
+            nn.ReLU(),
+
+            nn.Conv1d(64, num_options * vocab_size, 1),
+        )
+
+    def residuals(self, x, stage):
+        out = x.permute(0, 2, 1)
+        out = self.layers(out, stage)
+        out = out.view(x.shape[0], self.num_options, self.vocab_size, self.seq_len)
+        out = out.permute(0, 1, 3, 2).contiguous()
+        return out
+
+
 class StagedBlock(nn.Module):
     """
     Base class for blocks which take the stage index as
@@ -329,6 +373,34 @@ class CondConvTranspose2d(StagedBlock):
 
     def forward(self, x, stage):
         return self.conv(x) * self.embeddings[stage, :, None, None]
+
+
+class CondConv1d(StagedBlock):
+    """
+    A stage-conditioned convolution operator.
+    """
+
+    def __init__(self, num_options, *args, **kwargs):
+        super().__init__()
+        self.conv = nn.Conv1d(*args, **kwargs)
+        self.embeddings = nn.Parameter(torch.randn(num_options, self.conv.out_channels))
+
+    def forward(self, x, stage):
+        return self.conv(x) * self.embeddings[stage, :, None]
+
+
+class CondConvTranspose1d(StagedBlock):
+    """
+    A stage-conditioned transposed convolution operator.
+    """
+
+    def __init__(self, num_options, *args, **kwargs):
+        super().__init__()
+        self.conv = nn.ConvTranspose1d(*args, **kwargs)
+        self.embeddings = nn.Parameter(torch.randn(num_options, self.conv.out_channels))
+
+    def forward(self, x, stage):
+        return self.conv(x) * self.embeddings[stage, :, None]
 
 
 class ResidualBlock(Sequential):

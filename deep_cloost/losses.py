@@ -31,3 +31,15 @@ class MSELoss(LossFunc):
 
     def loss_grid(self, x, y):
         return torch.mean(torch.pow(x - y, 2), dim=tuple(range(2, len(x.shape))))
+
+
+class SoftmaxLoss(LossFunc):
+    def forward(self, x, y):
+        log_probs = torch.log_softmax(x, dim=-1)
+        return -torch.mean(torch.gather(log_probs, -1, y[..., None]))
+
+    def loss_grid(self, x, y):
+        y = y.repeat(1, x.shape[1], *([1] * (len(y.shape) - 2)))
+        log_probs = torch.log_softmax(x, dim=-1)
+        losses = -torch.gather(log_probs, -1, y[..., None])
+        return torch.mean(losses, dim=tuple(range(2, len(x.shape))))

@@ -1,0 +1,54 @@
+import torch
+from torchtext.data import Field, BPTTIterator
+from torchtext.datasets import WikiText2
+
+from deep_cloost.losses import SoftmaxLoss
+from deep_cloost.model import Encoder, TextRefiner
+from deep_cloost.train import TextTrainer
+
+
+class WikiText2Trainer(TextTrainer):
+    def arg_parser(self):
+        parser = super().arg_parser()
+        parser.add_argument('--bptt-len', default=32, type=int)
+        return parser
+
+    @property
+    def vocab_size(self):
+        return len(self.train_loader.dataset.fields['text'].vocab)
+
+    @property
+    def default_checkpoint(self):
+        return 'text_model.pt'
+
+    @property
+    def default_stages(self):
+        return 10
+
+    @property
+    def shape(self):
+        return (self.args.bptt_len, self.vocab_size)
+
+    def create_datasets(self):
+        field = Field(tokenize=list)
+        train, val, test = WikiText2.splits(field, root='wikitext2_data')
+        field.build_vocab(train, vectors=None)
+        trains, vals, _ = BPTTIterator.splits((train, val, test),
+                                              batch_size=self.args.batch,
+                                              bptt_len=self.args.bptt_len,
+                                              device=torch.device('cpu'))
+        return trains, vals
+
+    def create_model(self):
+        refiner = TextRefiner(self.args.options,
+                              self.args.stages,
+                              self.args.bptt_len,
+                              self.vocab_size)
+        return Encoder(shape=self.shape,
+                       options=self.args.options,
+                       refiner=refiner,
+                       loss_fn=SoftmaxLoss())
+
+
+if __name__ == '__main__':
+    WikiText2Trainer().main()

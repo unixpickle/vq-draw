@@ -3,4 +3,6 @@
 .ipynb_checkpoints
 renderings.png
 samples.png
+reconstructions.txt
+samples.txt
 __pycache__

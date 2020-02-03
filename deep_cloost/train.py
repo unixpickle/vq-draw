@@ -8,45 +8,6 @@ import torch
 import torch.optim as optim
 
 
-def gather_samples(loader, num_samples):
-    """
-    Gather a batch of samples from a data loader.
-    """
-    results = []
-    count = 0
-    while count < num_samples:
-        for inputs, _ in loader:
-            results.append(inputs)
-            count += inputs.shape[0]
-            if count >= num_samples:
-                break
-    return torch.cat(results, dim=0)[:num_samples]
-
-
-def evaluate_model(loader, model):
-    """
-    Evaluate the reconstruction loss for a model on an
-    entire dataset, represented by a loader.
-
-    Returns:
-        A scalar Tensor of the loss.
-    """
-    device = torch.device('cpu')
-    for p in model.parameters():
-        device = p.device
-        break
-
-    loss = 0.0
-    count = 0
-    for inputs, _ in loader:
-        inputs = inputs.to(device)
-        with torch.no_grad():
-            outputs = model.reconstruct(inputs)
-            loss += inputs.shape[0] * model.loss_fn(outputs, inputs)
-        count += inputs.shape[0]
-    return loss / count
-
-
 class Trainer(ABC):
     """
     A Trainer can be used for end-to-end training of an
@@ -90,8 +51,8 @@ class Trainer(ABC):
         """
         Run the infinite training loop.
         """
-        loaders = zip(self._cycle_batches(self.train_loader),
-                      self._cycle_batches(self.test_loader))
+        loaders = zip(self.cycle_batches(self.train_loader),
+                      self.cycle_batches(self.test_loader))
         for i, (train_batch, test_batch) in enumerate(loaders):
             if not i % self.args.save_interval:
                 if i:
@@ -183,7 +144,7 @@ class Trainer(ABC):
         """
         pass
 
-    def _cycle_batches(self, loader):
+    def cycle_batches(self, loader):
         """
         Utility to infinitely cycle through batches from a
         data loader.
@@ -191,6 +152,19 @@ class Trainer(ABC):
         while True:
             for batch, _ in loader:
                 yield batch.to(self.device)
+
+    def gather_samples(self, loader, num_samples):
+        """
+        Gather a batch of samples from a data loader.
+        """
+        results = []
+        count = 0
+        for inputs in self.cycle_batches(loader):
+            results.append(inputs)
+            count += inputs.shape[0]
+            if count >= num_samples:
+                break
+        return torch.cat(results, dim=0)[:num_samples]
 
 
 class ImageTrainer(Trainer):
@@ -202,7 +176,7 @@ class ImageTrainer(Trainer):
         """
         Save a reconstruction grid to a file.
         """
-        data = gather_samples(self.test_loader, self.image_grid_size ** 2).to(self.device)
+        data = self.gather_samples(self.test_loader, self.image_grid_size ** 2).to(self.device)
         with torch.no_grad():
             recons = self.model.reconstruct(data)
         img = torch.cat([data, recons], dim=-1)
@@ -247,3 +221,58 @@ class ImageTrainer(Trainer):
         of floats from 0 to 1.
         """
         pass
+
+
+class TextTrainer(Trainer):
+    """
+    A Trainer for text datasets.
+    """
+
+    def save_reconstructions(self):
+        """
+        Save a reconstruction sample to a file.
+        """
+        data = self.gather_samples(self.test_loader, self.sample_count).to(self.device)
+        with torch.no_grad():
+            recons = self.model.reconstruct(data)
+        texts = [self.tensor_to_string(data[i]) + '\n' + self.tensor_to_string(recons[i])
+                 for i in range(data.shape[0])]
+        with open('reconstructions.txt', 'w+') as f:
+            f.write('\n\n'.join(texts))
+
+    def save_samples(self):
+        """
+        Save a sample grid to a file.
+        """
+        latents = torch.randint(high=self.model.options,
+                                size=(self.sample_count, self.model.num_stages))
+        with torch.no_grad():
+            tokens = self.model.decode(latents.to(self.device))
+        texts = [self.tensor_to_string(tokens[i]) for i in range(tokens.shape[0])]
+        with open('samples.txt', 'w+') as f:
+            f.write('\n\n'.join(texts))
+
+    @property
+    def sample_count(self):
+        """
+        Determine the number of samples to save.
+        """
+        return 5
+
+    def tensor_to_string(self, tensor):
+        """
+        Convert a tensor of tokens (or logits) into a string.
+        """
+        if tensor.dtype.is_floating_point:
+            tensor = torch.argmax(tensor, dim=-1)
+        field = self.train_loader.dataset.fields['text']
+        return ''.join(field.vocab.itos[i] for i in tensor.detach().cpu().numpy())
+
+    def cycle_batches(self, loader):
+        """
+        Utility to infinitely cycle through batches from a
+        data loader.
+        """
+        while True:
+            for batch in loader:
+                yield batch.text.to(self.device).t()
