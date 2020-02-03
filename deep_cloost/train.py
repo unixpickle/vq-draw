@@ -121,9 +121,8 @@ class Trainer(ABC):
             model.load_state_dict(torch.load(self.args.checkpoint, map_location='cpu'))
         else:
             print('=> created new encoder model...')
-        for enc in model.encoders:
-            enc.num_stages = self.args.stages
-            enc.grad_decay = self.args.grad_decay
+        model.num_stages = self.args.stages
+        model.grad_decay = self.args.grad_decay
         return model.to(self.device)
 
     def save_checkpoint(self):
