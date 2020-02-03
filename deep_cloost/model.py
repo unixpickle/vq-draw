@@ -79,7 +79,7 @@ class Encoder(nn.Module):
                 to predict the outputs.
               losses: an [N x num_stages x options] tensor.
         """
-        current_outputs = torch.zeros((inputs.shape[0], *self.shape))
+        current_outputs = torch.zeros((inputs.shape[0], *self.shape), device=inputs.device)
         interval = int(math.sqrt(self.num_stages))
         if not checkpoint or interval < 1:
             return self._forward_range(range(self.num_stages), inputs, current_outputs)
@@ -118,9 +118,9 @@ class Encoder(nn.Module):
             encodings.append(indices)
             current_outputs = new_outputs[range(new_outputs.shape[0]), indices]
         if len(encodings) == 0:
-            return (torch.zeros(inputs.shape[0], 0, dtype=torch.long),
+            return (torch.zeros(inputs.shape[0], 0, dtype=torch.long, device=inputs.device),
                     current_outputs,
-                    torch.zeros(inputs.shape[0], 0, self.options))
+                    torch.zeros(inputs.shape[0], 0, self.options, device=inputs.device))
         return (torch.stack(encodings, dim=-1),
                 current_outputs,
                 torch.stack(all_losses, dim=1))
