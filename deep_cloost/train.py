@@ -76,6 +76,7 @@ class Trainer(ABC):
         parser.add_argument('--options', default=64, type=int)
         parser.add_argument('--checkpoint', default=self.default_checkpoint, type=str)
         parser.add_argument('--save-interval', default=10, type=int)
+        parser.add_argument('--step-interval', default=1, type=int)
 
         parser.add_argument('--grad-checkpoint', action='store_true')
         parser.add_argument('--grad-decay', default=0, type=float)
@@ -92,6 +93,10 @@ class Trainer(ABC):
         loaders = zip(self._cycle_batches(self.train_loader),
                       self._cycle_batches(self.test_loader))
         for i, (train_batch, test_batch) in enumerate(loaders):
+            if not i % self.args.save_interval:
+                if i:
+                    self.optimizer.step()
+                self.optimizer.zero_grad()
             losses = self.model.train_quantities(train_batch, checkpoint=self.args.grad_checkpoint)
             with torch.no_grad():
                 test_losses = self.model.train_quantities(test_batch,
@@ -99,9 +104,7 @@ class Trainer(ABC):
             loss = (losses['choice'] +
                     losses['final'] * self.args.final_coeff +
                     losses['all'] * self.args.aux_coeff)
-            self.optimizer.zero_grad()
             loss.backward()
-            self.optimizer.step()
             print('step %d: train=%f test=%f entropy=%f used=%d' %
                   (i, losses['final'].item(), test_losses['final'].item(), losses['entropy'],
                    losses['used']))
