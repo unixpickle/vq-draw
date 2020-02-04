@@ -227,6 +227,10 @@ class CIFARRefiner(ResidualRefiner):
             CondConv2d(max_stages, 128, 256, 3, padding=1),
             res_block(),
             res_block(),
+            res_block(),
+            res_block(),
+            res_block(),
+            res_block(),
 
             # Increase spacial resolution back to original.
             CondConvTranspose2d(max_stages, 256, 128, 3, stride=2, padding=1,
