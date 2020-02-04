@@ -293,6 +293,17 @@ class TextRefiner(ResidualRefiner):
         self.num_options = num_options
         self.seq_len = seq_len
         self.vocab_size = vocab_size
+
+        def res_block():
+            return ResidualBlock(
+                nn.ReLU(),
+                nn.GroupNorm(8, 256),
+                CondConv1d(max_stages, 256, 256, 7, stride=1, padding=3),
+                nn.ReLU(),
+                nn.GroupNorm(8, 256),
+                CondConv1d(max_stages, 256, 256, 7, stride=1, padding=3),
+            )
+
         self.layers = Sequential(
             # Embed inputs into low-dimensional space.
             nn.Conv1d(vocab_size, 64, 1),
@@ -301,13 +312,12 @@ class TextRefiner(ResidualRefiner):
             # Downsample
             nn.Conv1d(64, 128, 3, stride=2, padding=1),
             nn.ReLU(),
+            nn.GroupNorm(8, 128),
             CondConv1d(max_stages, 128, 256, 3, stride=2, padding=1),
-            nn.ReLU(),
 
-            CondConv1d(max_stages, 256, 256, 3, stride=1, padding=1),
-            nn.ReLU(),
-            CondConv1d(max_stages, 256, 256, 3, stride=1, padding=1),
-            nn.ReLU(),
+            res_block(),
+            res_block(),
+            res_block(),
 
             # Upsample
             CondConvTranspose1d(max_stages, 256, 128, 3, stride=2, padding=1, output_padding=1),
