@@ -1,5 +1,5 @@
 *_data/
-*.pt
+./*.pt
 .ipynb_checkpoints
 renderings.png
 samples.png
