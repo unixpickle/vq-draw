@@ -304,11 +304,12 @@ class TextRefiner(ResidualRefiner):
                 CondConv1d(max_stages, 256, 256, 7, stride=1, padding=3),
             )
 
-        self.layers = Sequential(
-            # Embed inputs into low-dimensional space.
+        self.embed = nn.Sequential(
             nn.Conv1d(vocab_size, 64, 1),
             nn.ReLU(),
-
+        )
+        self.pos_enc = nn.Parameter(torch.randn(1, 64, seq_len))
+        self.layers = Sequential(
             # Downsample
             nn.Conv1d(64, 128, 3, stride=2, padding=1),
             nn.ReLU(),
@@ -330,6 +331,8 @@ class TextRefiner(ResidualRefiner):
 
     def residuals(self, x, stage):
         out = x.permute(0, 2, 1)
+        out = self.embed(out)
+        out = out + self.pos_enc
         out = self.layers(out, stage)
         out = out.view(x.shape[0], self.num_options, self.vocab_size, self.seq_len)
         out = out.permute(0, 1, 3, 2).contiguous()
