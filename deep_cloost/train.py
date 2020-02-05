@@ -51,6 +51,9 @@ class Trainer(ABC):
         """
         Run the infinite training loop.
         """
+        if self.use_cuda:
+            import torch.backends.cudnn as cudnn # noqa: F401
+            cudnn.benchmark = True
         loaders = zip(self.cycle_batches(self.train_loader),
                       self.cycle_batches(self.test_loader))
         for i, (train_batch, test_batch) in enumerate(loaders):
