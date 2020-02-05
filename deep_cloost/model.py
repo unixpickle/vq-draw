@@ -294,39 +294,39 @@ class TextRefiner(ResidualRefiner):
         self.seq_len = seq_len
         self.vocab_size = vocab_size
 
-        def res_block():
+        self.output_scale = nn.Parameter(torch.tensor(0.1))
+
+        def res_block(dilation):
             return ResidualBlock(
                 nn.ReLU(),
-                nn.GroupNorm(8, 256),
-                CondConv1d(max_stages, 256, 256, 7, stride=1, padding=3),
+                nn.GroupNorm(8, 128),
+                CondConv1d(max_stages, 128, 128, 3, stride=1, padding=dilation, dilation=dilation),
                 nn.ReLU(),
-                nn.GroupNorm(8, 256),
-                CondConv1d(max_stages, 256, 256, 7, stride=1, padding=3),
+                nn.GroupNorm(8, 128),
+                CondConv1d(max_stages, 128, 128, 3, stride=1, padding=dilation, dilation=dilation),
             )
 
         self.embed = nn.Sequential(
-            nn.Conv1d(vocab_size, 64, 1),
+            nn.Conv1d(vocab_size, 128, 1),
             nn.ReLU(),
         )
-        self.pos_enc = nn.Parameter(torch.randn(1, 64, seq_len))
+        self.pos_enc = nn.Parameter(torch.randn(1, 128, seq_len))
         self.layers = Sequential(
-            # Downsample
-            nn.Conv1d(64, 128, 3, stride=2, padding=1),
+            res_block(1),
+            res_block(2),
+            res_block(4),
+            res_block(8),
+            res_block(16),
+            res_block(32),
+            res_block(1),
+            res_block(2),
+            res_block(4),
+            res_block(8),
+            res_block(16),
+            res_block(32),
             nn.ReLU(),
             nn.GroupNorm(8, 128),
-            CondConv1d(max_stages, 128, 256, 3, stride=2, padding=1),
-
-            res_block(),
-            res_block(),
-            res_block(),
-
-            # Upsample
-            CondConvTranspose1d(max_stages, 256, 128, 3, stride=2, padding=1, output_padding=1),
-            nn.ReLU(),
-            CondConvTranspose1d(max_stages, 128, 64, 3, stride=2, padding=1, output_padding=1),
-            nn.ReLU(),
-
-            nn.Conv1d(64, num_options * vocab_size, 1),
+            nn.Conv1d(128, num_options * vocab_size, 1),
         )
 
     def residuals(self, x, stage):
@@ -336,7 +336,7 @@ class TextRefiner(ResidualRefiner):
         out = self.layers(out, stage)
         out = out.view(x.shape[0], self.num_options, self.vocab_size, self.seq_len)
         out = out.permute(0, 1, 3, 2).contiguous()
-        return out
+        return out * self.output_scale
 
 
 class StagedBlock(nn.Module):
