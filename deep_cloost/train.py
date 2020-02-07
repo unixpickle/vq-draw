@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod, abstractproperty
 import argparse
 import os
+import random
 
 from PIL import Image
 import numpy as np
@@ -271,11 +272,24 @@ class TextTrainer(Trainer):
         field = self.train_loader.dataset.fields['text']
         return ''.join(field.vocab.itos[i] for i in tensor.detach().cpu().numpy())
 
+    @property
+    def shuffle_count(self):
+        """
+        Get the number of batches to shuffle together.
+        """
+        return 200
+
     def cycle_batches(self, loader):
         """
         Utility to infinitely cycle through batches from a
         data loader.
         """
         while True:
+            batches = []
             for batch in loader:
-                yield batch.text.to(self.device).t()
+                batches.append(batch)
+                if len(batches) == self.shuffle_count:
+                    random.shuffle(batches)
+                    for x in batches:
+                        yield x.text.to(self.device).t()
+                    batches = []
