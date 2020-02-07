@@ -273,23 +273,24 @@ class TextTrainer(Trainer):
         return ''.join(field.vocab.itos[i] for i in tensor.detach().cpu().numpy())
 
     @property
-    def shuffle_count(self):
+    def shuffle_data(self):
         """
-        Get the number of batches to shuffle together.
+        If True, gather all the data and shuffle it.
         """
-        return 200
+        return True
 
     def cycle_batches(self, loader):
         """
         Utility to infinitely cycle through batches from a
         data loader.
         """
-        while True:
-            batches = []
-            for batch in loader:
-                batches.append(batch)
-                if len(batches) == self.shuffle_count:
-                    random.shuffle(batches)
-                    for x in batches:
-                        yield x.text.to(self.device).t()
-                    batches = []
+        if not self.shuffle_data:
+            while True:
+                for batch in loader:
+                    yield batch.text.to(self.device).t()
+        else:
+            batches = [batch for batch in loader]
+            while True:
+                random.shuffle(batches)
+                for x in batches:
+                    yield x.text.to(self.device).t()
