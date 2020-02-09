@@ -216,14 +216,13 @@ class CIFARRefiner(ResidualRefiner):
 
         self.layers = Sequential(
             # Reduce spatial resolution.
-            nn.Conv2d(3, 64, 3, stride=2, padding=1),
+            nn.Conv2d(3, 64, 5, stride=2, padding=2),
             nn.ReLU(),
             nn.GroupNorm(8, 64),
-            CondConv2d(max_stages, 64, 128, 3, stride=2, padding=1),
+            nn.Conv2d(64, 128, 5, stride=2, padding=2),
             nn.ReLU(),
             nn.GroupNorm(8, 128),
 
-            # Process data at lower spatial resolution.
             CondConv2d(max_stages, 128, 256, 3, padding=1),
             res_block(),
             res_block(),
@@ -233,17 +232,15 @@ class CIFARRefiner(ResidualRefiner):
             res_block(),
 
             # Increase spacial resolution back to original.
-            CondConvTranspose2d(max_stages, 256, 128, 3, stride=2, padding=1,
-                                output_padding=1),
+            CondConvTranspose2d(max_stages, 256, 128, 4, stride=2, padding=1),
             nn.ReLU(),
             nn.GroupNorm(8, 128),
-            CondConvTranspose2d(max_stages, 128, 128, 3, stride=2, padding=1,
-                                output_padding=1),
+            CondConvTranspose2d(max_stages, 128, 128, 4, stride=2, padding=1),
             nn.ReLU(),
             nn.GroupNorm(8, 128),
 
             # Generate option outputs.
-            nn.Conv2d(128, 3 * self.num_options, 3, padding=1),
+            nn.Conv2d(128, 3 * self.num_options, 5, padding=2),
         )
 
     def residuals(self, x, stage):
