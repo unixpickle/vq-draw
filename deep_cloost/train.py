@@ -44,6 +44,7 @@ class Trainer(ABC):
         parser.add_argument('--grad-decay', default=0, type=float)
         parser.add_argument('--lr', default=0.001, type=float)
         parser.add_argument('--aux-coeff', default=0.01, type=float)
+        parser.add_argument('--epsilon', default=0, type=float)
         parser.add_argument('--final-coeff', default=0, type=float)
 
         return parser
@@ -62,7 +63,9 @@ class Trainer(ABC):
                 if i:
                     self.optimizer.step()
                 self.optimizer.zero_grad()
-            losses = self.model.train_quantities(train_batch, checkpoint=self.args.grad_checkpoint)
+            losses = self.model.train_quantities(train_batch,
+                                                 checkpoint=self.args.grad_checkpoint,
+                                                 epsilon=self.args.epsilon)
             with torch.no_grad():
                 test_losses = self.model.train_quantities(test_batch,
                                                           checkpoint=self.args.grad_checkpoint)

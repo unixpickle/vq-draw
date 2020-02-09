@@ -62,7 +62,7 @@ class Encoder(nn.Module):
     def grad_decay(self, x):
         self._grad_decay.copy_(torch.zeros_like(self._grad_decay) + x)
 
-    def forward(self, inputs, checkpoint=False):
+    def forward(self, inputs, checkpoint=False, epsilon=0):
         """
         Apply the encoder and track the corresponding
         reconstructions.
@@ -71,6 +71,8 @@ class Encoder(nn.Module):
             inputs: a Tensor of inputs to encode.
             checkpoint: if True, use sqrt(stages) memory
               for longer reconstruction sequences.
+            epsilon: probability of sampling randon latent
+              codes.
 
         Returns:
             A tuple (encodings, reconstructions, losses):
@@ -82,14 +84,14 @@ class Encoder(nn.Module):
         current_outputs = torch.zeros((inputs.shape[0], *self.shape), device=inputs.device)
         interval = int(math.sqrt(self.num_stages))
         if not checkpoint or interval < 1:
-            return self._forward_range(range(self.num_stages), inputs, current_outputs)
+            return self._forward_range(range(self.num_stages), inputs, current_outputs, epsilon)
         encodings = []
         all_losses = []
         for i in range(0, self.num_stages, interval):
             r = range(i, min(i+interval, self.num_stages))
 
             def f(inputs, current_outputs, dummy, stages=r):
-                encs, outs, losses = self._forward_range(stages, inputs, current_outputs)
+                encs, outs, losses = self._forward_range(stages, inputs, current_outputs, epsilon)
 
                 # Cannot have a return value that does not require
                 # grad, so we use this hack instead.
@@ -107,7 +109,7 @@ class Encoder(nn.Module):
                 current_outputs,
                 torch.cat(all_losses, dim=1))
 
-    def _forward_range(self, stages, inputs, current_outputs):
+    def _forward_range(self, stages, inputs, current_outputs, epsilon):
         encodings = []
         all_losses = []
         for i in stages:
@@ -115,6 +117,10 @@ class Encoder(nn.Module):
             losses = self.loss_fn.loss_grid(new_outputs, inputs[:, None])
             all_losses.append(losses)
             indices = torch.argmin(losses, dim=1)
+            if epsilon:
+                rands = torch.randint(0, self.options, indices.shape, device=indices.device)
+                takes = (torch.rand(indices.shape, device=indices.device) < epsilon).long()
+                indices = takes * rands + (1 - takes) * indices
             encodings.append(indices)
             current_outputs = new_outputs[range(new_outputs.shape[0]), indices]
         if len(encodings) == 0:
