@@ -1,9 +1,11 @@
+import math
+
 import torch
 from torchtext.data import Field, BPTTIterator
 from torchtext.datasets import WikiText2
 
 from deep_cloost.losses import SoftmaxLoss
-from deep_cloost.model import Encoder, TextRefiner
+from deep_cloost.model import Encoder, TextRefiner, SegmentRefiner
 from deep_cloost.train import TextTrainer
 
 
@@ -11,6 +13,7 @@ class WikiText2Trainer(TextTrainer):
     def arg_parser(self):
         parser = super().arg_parser()
         parser.add_argument('--bptt-len', default=32, type=int)
+        parser.add_argument('--segment', default=10, type=int)
         return parser
 
     @property
@@ -23,7 +26,7 @@ class WikiText2Trainer(TextTrainer):
 
     @property
     def default_stages(self):
-        return 10
+        return 50
 
     @property
     def shape(self):
@@ -40,10 +43,14 @@ class WikiText2Trainer(TextTrainer):
         return trains, vals
 
     def create_model(self):
-        refiner = TextRefiner(self.args.options,
-                              self.args.stages,
-                              self.args.bptt_len,
-                              self.vocab_size)
+        def make_refiner():
+            return TextRefiner(self.args.options,
+                               self.args.segment,
+                               self.args.bptt_len,
+                               self.vocab_size)
+
+        num_refiners = int(math.ceil(self.args.stages / self.args.segment))
+        refiner = SegmentRefiner(self.args.segment, *[make_refiner() for _ in range(num_refiners)])
         return Encoder(shape=self.shape,
                        options=self.args.options,
                        refiner=refiner,
