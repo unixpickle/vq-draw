@@ -184,6 +184,17 @@ class Encoder(nn.Module):
         return current_outputs
 
 
+class SegmentRefiner(nn.Module):
+    def __init__(self, seg_len, *segments):
+        super().__init__()
+        self.seg_len = seg_len
+        self.segments = nn.ModuleList(*segments)
+
+    def forward(self, x, stage):
+        seg = self.segments[stage // self.seg_len]
+        return seg(x, stage % self.seg_len)
+
+
 class ResidualRefiner(nn.Module):
     """
     Base class for refiner modules that compute additive
