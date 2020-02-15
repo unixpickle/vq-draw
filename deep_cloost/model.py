@@ -311,13 +311,13 @@ class TextRefiner(ResidualRefiner):
         self.output_scale = nn.Parameter(torch.tensor(0.1))
 
         def res_block(dilation):
-            return ResidualBlock(
-                nn.ReLU(),
-                nn.GroupNorm(8, 128),
-                CondConv1d(max_stages, 128, 128, 3, stride=1, padding=dilation, dilation=dilation),
-                nn.ReLU(),
-                nn.GroupNorm(8, 128),
-                CondConv1d(max_stages, 128, 128, 3, stride=1, padding=dilation, dilation=dilation),
+            return Sequential(
+                CondConv1d(max_stages, 128, 256, 3,
+                           stride=1,
+                           padding=dilation,
+                           dilation=dilation),
+                GatedActivation(),
+                CondConv1d(max_stages, 128, 128, 1),
             )
 
         self.embed = nn.Sequential(
@@ -325,7 +325,7 @@ class TextRefiner(ResidualRefiner):
             nn.ReLU(),
         )
         self.pos_enc = nn.Parameter(torch.randn(1, 128, seq_len))
-        self.layers = Sequential(
+        self.res_blocks = nn.ModuleList([
             res_block(1),
             res_block(2),
             res_block(4),
@@ -338,16 +338,24 @@ class TextRefiner(ResidualRefiner):
             res_block(8),
             res_block(16),
             res_block(32),
+        ])
+        self.output_block = Sequential(
             nn.ReLU(),
-            nn.GroupNorm(8, 128),
-            nn.Conv1d(128, num_options * vocab_size, 1),
+            nn.Conv1d(128, 256, 1),
+            nn.ReLU(),
+            nn.Conv1d(256, num_options * vocab_size, 1),
         )
 
     def residuals(self, x, stage):
         out = x.permute(0, 2, 1)
         out = self.embed(out)
         out = out + self.pos_enc
-        out = self.layers(out, stage)
+        total_sum = 0
+        for block in self.res_blocks:
+            x = block(out, stage)
+            out = out + x
+            total_sum = x + total_sum
+        out = self.output_block(total_sum, stage)
         out = out.view(x.shape[0], self.num_options, self.vocab_size, self.seq_len)
         out = out.permute(0, 1, 3, 2).contiguous()
         return out * self.output_scale
@@ -457,3 +465,13 @@ class ResidualBlock(Sequential):
 
     def forward(self, x, stage):
         return super().forward(x, stage) + x
+
+
+class GatedActivation(nn.Module):
+    """
+    Gated tanh+sigmoid pair like from WaveNet.
+    """
+
+    def forward(self, x):
+        dim = x.shape[1] // 2
+        return torch.tanh(x[:, :dim]) * torch.sigmoid(x[:, dim:])
