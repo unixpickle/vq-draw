@@ -399,7 +399,7 @@ class CondModule(CondBlock):
         super().__init__()
         self.modules = nn.ModuleList([ctor() for _ in range(num_stages)])
 
-    def __forward__(self, x, stage):
+    def forward(self, x, stage):
         return self.modules[stage](x)
 
 
