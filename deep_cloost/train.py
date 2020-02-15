@@ -35,6 +35,7 @@ class Trainer(ABC):
         parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
         parser.add_argument('--batch', default=128, type=int)
         parser.add_argument('--stages', default=self.default_stages, type=int)
+        parser.add_argument('--active-stages', default=0, type=int)
         parser.add_argument('--options', default=64, type=int)
         parser.add_argument('--checkpoint', default=self.default_checkpoint, type=str)
         parser.add_argument('--save-interval', default=10, type=int)
@@ -53,6 +54,8 @@ class Trainer(ABC):
         """
         Run the infinite training loop.
         """
+        if self.args.active_stages:
+            self.model.num_stages = self.args.active_stages
         if self.use_cuda:
             import torch.backends.cudnn as cudnn  # noqa: F401
             cudnn.benchmark = True
