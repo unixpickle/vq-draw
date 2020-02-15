@@ -353,17 +353,18 @@ class TextRefiner(ResidualRefiner):
         return out * self.output_scale
 
 
-class StagedBlock(nn.Module):
+class CondBlock(nn.Module):
     """
     Base class for blocks which take the stage index as
-    one of the inputs.
+    one of the inputs. These blocks are conditioned on the
+    stage, hence "cond".
     """
     @abstractmethod
     def forward(self, x, stage):
         pass
 
 
-class Sequential(StagedBlock, nn.Sequential):
+class Sequential(CondBlock, nn.Sequential):
     """
     A sequential block that passes the stage to other
     staged blocks.
@@ -371,14 +372,14 @@ class Sequential(StagedBlock, nn.Sequential):
 
     def forward(self, x, stage):
         for b in self:
-            if isinstance(b, StagedBlock):
+            if isinstance(b, CondBlock):
                 x = b(x, stage)
             else:
                 x = b(x)
         return x
 
 
-class CondModule(StagedBlock):
+class CondModule(CondBlock):
     """
     An arbitrary stage-conditioned module that encompasses
     multiple instances of the same module.
@@ -392,7 +393,7 @@ class CondModule(StagedBlock):
         return self.modules[stage](x)
 
 
-class CondConv2d(StagedBlock):
+class CondConv2d(CondBlock):
     """
     A stage-conditioned convolution operator.
     """
@@ -406,7 +407,7 @@ class CondConv2d(StagedBlock):
         return self.conv(x) * self.embeddings[stage, :, None, None]
 
 
-class CondConvTranspose2d(StagedBlock):
+class CondConvTranspose2d(CondBlock):
     """
     A stage-conditioned transposed convolution operator.
     """
@@ -420,7 +421,7 @@ class CondConvTranspose2d(StagedBlock):
         return self.conv(x) * self.embeddings[stage, :, None, None]
 
 
-class CondConv1d(StagedBlock):
+class CondConv1d(CondBlock):
     """
     A stage-conditioned convolution operator.
     """
@@ -434,7 +435,7 @@ class CondConv1d(StagedBlock):
         return self.conv(x) * self.embeddings[stage, :, None]
 
 
-class CondConvTranspose1d(StagedBlock):
+class CondConvTranspose1d(CondBlock):
     """
     A stage-conditioned transposed convolution operator.
     """
