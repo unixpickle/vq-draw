@@ -299,6 +299,48 @@ class MNISTRefiner(ResidualRefiner):
         return x.view(x.shape[0], self.num_options, 1, *x.shape[2:])
 
 
+class SVHNRefiner(ResidualRefiner):
+    """
+    A refiner module appropriate for the SVHN dataset.
+    """
+
+    def __init__(self, num_options, max_stages):
+        super().__init__()
+        self.num_options = num_options
+        self.output_scale = nn.Parameter(torch.tensor(0.1))
+        self.layers = Sequential(
+            # Downsample the image to 8x8.
+            CondConv2d(max_stages, 3, 32, 5, stride=2, padding=2),
+            nn.ReLU(),
+            CondConv2d(max_stages, 32, 64, 5, stride=2, padding=2),
+            nn.ReLU(),
+
+            # Process the downsampled image.
+            CondConv2d(max_stages, 64, 128, 3, padding=1),
+            nn.ReLU(),
+            CondConv2d(max_stages, 128, 128, 3, padding=1),
+            nn.ReLU(),
+            CondConv2d(max_stages, 128, 64, 3, padding=1),
+            nn.ReLU(),
+
+            # Upsample the image in a checkerboardless way.
+            nn.Upsample(scale_factor=2),
+            CondConv2d(max_stages, 64, 64, 5, padding=2),
+            nn.ReLU(),
+            nn.Upsample(scale_factor=2),
+            CondConv2d(max_stages, 64, 64, 5, padding=2),
+            nn.ReLU(),
+
+            # More powerful conditioning for output, which
+            # gives better results.
+            CondModule(max_stages, lambda: nn.Conv2d(64, num_options * 3, 1)),
+        )
+
+    def residuals(self, x, stage):
+        x = self.layers(x, stage) * self.output_scale
+        return x.view(x.shape[0], self.num_options, 3, *x.shape[2:])
+
+
 class TextRefiner(ResidualRefiner):
     """
     A refiner module appropriate for textual dataset.
