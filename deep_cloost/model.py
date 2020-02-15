@@ -397,10 +397,10 @@ class CondConv2d(StagedBlock):
     A stage-conditioned convolution operator.
     """
 
-    def __init__(self, num_options, *args, **kwargs):
+    def __init__(self, num_stages, *args, **kwargs):
         super().__init__()
         self.conv = nn.Conv2d(*args, **kwargs)
-        self.embeddings = nn.Parameter(torch.randn(num_options, self.conv.out_channels))
+        self.embeddings = nn.Parameter(torch.randn(num_stages, self.conv.out_channels))
 
     def forward(self, x, stage):
         return self.conv(x) * self.embeddings[stage, :, None, None]
@@ -411,10 +411,10 @@ class CondConvTranspose2d(StagedBlock):
     A stage-conditioned transposed convolution operator.
     """
 
-    def __init__(self, num_options, *args, **kwargs):
+    def __init__(self, num_stages, *args, **kwargs):
         super().__init__()
         self.conv = nn.ConvTranspose2d(*args, **kwargs)
-        self.embeddings = nn.Parameter(torch.randn(num_options, self.conv.out_channels))
+        self.embeddings = nn.Parameter(torch.randn(num_stages, self.conv.out_channels))
 
     def forward(self, x, stage):
         return self.conv(x) * self.embeddings[stage, :, None, None]
@@ -425,10 +425,10 @@ class CondConv1d(StagedBlock):
     A stage-conditioned convolution operator.
     """
 
-    def __init__(self, num_options, *args, **kwargs):
+    def __init__(self, num_stages, *args, **kwargs):
         super().__init__()
         self.conv = nn.Conv1d(*args, **kwargs)
-        self.embeddings = nn.Parameter(torch.randn(num_options, self.conv.out_channels))
+        self.embeddings = nn.Parameter(torch.randn(num_stages, self.conv.out_channels))
 
     def forward(self, x, stage):
         return self.conv(x) * self.embeddings[stage, :, None]
@@ -439,10 +439,10 @@ class CondConvTranspose1d(StagedBlock):
     A stage-conditioned transposed convolution operator.
     """
 
-    def __init__(self, num_options, *args, **kwargs):
+    def __init__(self, num_stages, *args, **kwargs):
         super().__init__()
         self.conv = nn.ConvTranspose1d(*args, **kwargs)
-        self.embeddings = nn.Parameter(torch.randn(num_options, self.conv.out_channels))
+        self.embeddings = nn.Parameter(torch.randn(num_stages, self.conv.out_channels))
 
     def forward(self, x, stage):
         return self.conv(x) * self.embeddings[stage, :, None]
