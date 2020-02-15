@@ -397,10 +397,10 @@ class CondModule(CondBlock):
 
     def __init__(self, num_stages, ctor):
         super().__init__()
-        self.modules = nn.ModuleList([ctor() for _ in range(num_stages)])
+        self.module_list = nn.ModuleList([ctor() for _ in range(num_stages)])
 
     def forward(self, x, stage):
-        return self.modules[stage](x)
+        return self.module_list[stage](x)
 
 
 class CondConv2d(CondBlock):
