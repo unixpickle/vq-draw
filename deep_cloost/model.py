@@ -378,6 +378,20 @@ class Sequential(StagedBlock, nn.Sequential):
         return x
 
 
+class CondModule(StagedBlock):
+    """
+    An arbitrary stage-conditioned module that encompasses
+    multiple instances of the same module.
+    """
+
+    def __init__(self, num_stages, ctor):
+        super().__init__()
+        self.modules = nn.ModuleList([ctor() for _ in range(num_stages)])
+
+    def __forward__(self, x, stage):
+        return self.modules[stage](x)
+
+
 class CondConv2d(StagedBlock):
     """
     A stage-conditioned convolution operator.
