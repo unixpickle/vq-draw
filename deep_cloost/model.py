@@ -557,4 +557,9 @@ class CondGroupNorm(CondBlock):
         self.biases = nn.Parameter(torch.zeros(max_stages, self.gn.num_channels))
 
     def forward(self, x, stage):
-        return self.gn(x) * self.weights[None, stage] + self.biases[None, stage]
+        w = self.weights[None, stage]
+        b = self.biases[None, stage]
+        while len(w.shape) < len(x.shape):
+            w = w[..., None]
+            b = b[..., None]
+        return self.gn(x) * w + b
