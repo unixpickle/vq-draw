@@ -501,3 +501,49 @@ class ResidualBlock(Sequential):
 
     def forward(self, x, stage):
         return super().forward(x, stage) + x
+
+
+class BlockLinear(nn.Module):
+    """
+    This is a linear layer that applies a block-diagonal
+    linear transformation with a normal bias vector.
+
+    Inputs and outputs have the same channel count.
+    """
+
+    def __init__(self, in_channels, block_size):
+        super().__init__()
+        assert in_channels % block_size == 0, 'block size must divide number of channels'
+        self.block_size = block_size
+        self.num_blocks = in_channels // block_size
+
+        scale = 1 / math.sqrt(block_size)
+        self.weight = nn.Parameter(scale * torch.randn(self.num_blocks, block_size, block_size))
+        self.bias = nn.Parameter(torch.randn(in_channels))
+
+    def forward(self, x):
+        # Fold the spatial dimensions into the batch.
+        shape = x.shape
+        x = x.view(shape[0], shape[1], -1)
+        spatial_dim = x.shape[-1]
+        x = x.permute(0, 2, 1).contiguous()
+        x = x.view(-1, shape[1])
+
+        x = self._forward_2d(x)
+
+        # Bring back the spatial dimensions.
+        x = x.view(shape[0], spatial_dim, shape[1])
+        x = x.permute(0, 2, 1).contiguous()
+        x = x.view(*shape)
+        return x
+
+    def _forward_2d(self, x):
+        """
+        Apply the module to an [N x C] Tensor.
+        """
+        x = x.view(x.shape[0], self.num_blocks, -1)
+        x = x.permute(1, 0, 2).contiguous()
+        x = torch.bmm(x, self.weight)
+        x = x.permute(1, 0, 2).contiguous()
+        x = x.view(x.shape[0], -1)
+        return x + self.bias
