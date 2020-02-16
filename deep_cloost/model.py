@@ -547,3 +547,14 @@ class BlockLinear(nn.Module):
         x = x.permute(1, 0, 2).contiguous()
         x = x.view(x.shape[0], -1)
         return x + self.bias
+
+
+class CondGroupNorm(CondBlock):
+    def __init__(self, max_stages, *args, **kwargs):
+        super().__init__()
+        self.gn = nn.GroupNorm(*args, **kwargs, affine=False)
+        self.weights = nn.Parameter(torch.ones(max_stages, self.num_channels))
+        self.biases = nn.Parameter(torch.zeros(max_stages, self.num_channels))
+
+    def forward(self, x, stage):
+        return self.gn(x) * self.weights[stage] + self.biases[stage]
