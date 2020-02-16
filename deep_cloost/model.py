@@ -553,8 +553,8 @@ class CondGroupNorm(CondBlock):
     def __init__(self, max_stages, *args, **kwargs):
         super().__init__()
         self.gn = nn.GroupNorm(*args, **kwargs, affine=False)
-        self.weights = nn.Parameter(torch.ones(max_stages, self.num_channels))
-        self.biases = nn.Parameter(torch.zeros(max_stages, self.num_channels))
+        self.weights = nn.Parameter(torch.ones(max_stages, self.gn.num_channels))
+        self.biases = nn.Parameter(torch.zeros(max_stages, self.gn.num_channels))
 
     def forward(self, x, stage):
-        return self.gn(x) * self.weights[stage] + self.biases[stage]
+        return self.gn(x) * self.weights[None, stage] + self.biases[None, stage]
