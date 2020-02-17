@@ -310,30 +310,30 @@ class SVHNRefiner(ResidualRefiner):
         self.output_scale = nn.Parameter(torch.tensor(0.1))
         self.layers = Sequential(
             # Downsample the image to 8x8.
-            CondConv2d(max_stages, 3, 32, 5, stride=2, padding=2),
+            CondConv2d(max_stages, 3, 64, 5, stride=2, padding=2),
             nn.ReLU(),
-            CondConv2d(max_stages, 32, 64, 5, stride=2, padding=2),
+            CondConv2d(max_stages, 64, 128, 5, stride=2, padding=2),
             nn.ReLU(),
 
             # Process the downsampled image.
-            CondConv2d(max_stages, 64, 128, 3, padding=1),
+            CondConv2d(max_stages, 128, 128, 3, padding=1),
             nn.ReLU(),
             CondConv2d(max_stages, 128, 128, 3, padding=1),
             nn.ReLU(),
-            CondConv2d(max_stages, 128, 64, 3, padding=1),
+            CondConv2d(max_stages, 128, 128, 3, padding=1),
             nn.ReLU(),
 
             # Upsample the image in a checkerboardless way.
             nn.Upsample(scale_factor=2),
-            CondConv2d(max_stages, 64, 64, 5, padding=2),
+            CondConv2d(max_stages, 128, 64, 5, padding=2),
             nn.ReLU(),
             nn.Upsample(scale_factor=2),
-            CondConv2d(max_stages, 64, 64, 5, padding=2),
+            CondConv2d(max_stages, 64, 128, 5, padding=2),
             nn.ReLU(),
 
             # More powerful conditioning for output, which
             # gives better results.
-            CondModule(max_stages, lambda: nn.Conv2d(64, num_options * 3, 1)),
+            CondModule(max_stages, lambda: nn.Conv2d(128, num_options * 3, 1)),
         )
 
     def residuals(self, x, stage):
