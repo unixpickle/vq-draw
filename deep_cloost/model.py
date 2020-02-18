@@ -249,12 +249,10 @@ class CIFARRefiner(ResidualRefiner):
             res_block(),
 
             # Increase spacial resolution back to original.
-            nn.Upsample(scale_factor=2),
-            CondConv2d(max_stages, 256, 128, 3, padding=1),
+            CondConvTranspose2d(max_stages, 256, 128, 4, stride=2, padding=1),
             nn.ReLU(),
             nn.GroupNorm(8, 128),
-            nn.Upsample(scale_factor=2),
-            CondConv2d(max_stages, 128, 128, 3, padding=1),
+            CondConvTranspose2d(max_stages, 128, 128, 4, stride=2, padding=1),
             nn.ReLU(),
             nn.GroupNorm(8, 128),
 
