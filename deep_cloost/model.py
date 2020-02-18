@@ -561,3 +561,13 @@ class CondGroupNorm(CondBlock):
             w = w[..., None]
             b = b[..., None]
         return self.gn(x) * w + b
+
+
+class DepthSepConv(nn.Module):
+    def __init__(self, in_channels, out_channels, *args, **kwargs):
+        super().__init__()
+        self.spatial = nn.Conv2d(in_channels, in_channels, *args, groups=in_channels, **kwargs)
+        self.depthwise = nn.Conv2d(out_channels, out_channels, 1)
+
+    def forward(self, x):
+        return self.depthwise(self.spatial(x))
