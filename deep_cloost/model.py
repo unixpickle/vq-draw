@@ -3,6 +3,7 @@ import math
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.utils.checkpoint
 
 
@@ -225,10 +226,12 @@ class CIFARRefiner(ResidualRefiner):
             return ResidualBlock(
                 nn.ReLU(),
                 nn.GroupNorm(8, 256),
-                CondConv2d(max_stages, 256, 256, 3, padding=1),
+                nn.Conv2d(256, 256, 3, padding=1),
+                CondChannelMask(max_stages, 256),
                 nn.ReLU(),
                 nn.GroupNorm(8, 256),
-                CondConv2d(max_stages, 256, 256, 3, padding=1),
+                nn.Conv2d(256, 256, 3, padding=1),
+                CondChannelMask(max_stages, 256),
             )
 
         self.layers = Sequential(
@@ -240,7 +243,8 @@ class CIFARRefiner(ResidualRefiner):
             nn.ReLU(),
             nn.GroupNorm(8, 128),
 
-            CondConv2d(max_stages, 128, 256, 3, padding=1),
+            nn.Conv2d(128, 256, 3, padding=1),
+            CondChannelMask(max_stages, 256),
             res_block(),
             res_block(),
             res_block(),
@@ -249,10 +253,12 @@ class CIFARRefiner(ResidualRefiner):
             res_block(),
 
             # Increase spacial resolution back to original.
-            CondConvTranspose2d(max_stages, 256, 128, 4, stride=2, padding=1),
+            nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1),
+            CondChannelMask(max_stages, 128),
             nn.ReLU(),
             nn.GroupNorm(8, 128),
-            CondConvTranspose2d(max_stages, 128, 128, 4, stride=2, padding=1),
+            nn.ConvTranspose2d(128, 128, 4, stride=2, padding=1),
+            CondChannelMask(max_stages, 128),
             nn.ReLU(),
             nn.GroupNorm(8, 128),
 
@@ -275,19 +281,26 @@ class MNISTRefiner(ResidualRefiner):
         self.num_options = num_options
         self.output_scale = nn.Parameter(torch.tensor(0.1))
         self.layers = Sequential(
-            CondConv2d(max_stages, 1, 32, 3, stride=2, padding=1),
+            nn.Conv2d(1, 32, 3, stride=2, padding=1),
+            CondChannelMask(max_stages, 32),
             nn.ReLU(),
-            CondConv2d(max_stages, 32, 64, 3, stride=2, padding=1),
+            nn.Conv2d(32, 64, 3, stride=2, padding=1),
+            CondChannelMask(max_stages, 64),
             nn.ReLU(),
-            CondConv2d(max_stages, 64, 128, 3, padding=1),
+            nn.Conv2d(64, 128, 3, padding=1),
+            CondChannelMask(max_stages, 128),
             nn.ReLU(),
-            CondConv2d(max_stages, 128, 128, 3, padding=1),
+            nn.Conv2d(128, 128, 3, padding=1),
+            CondChannelMask(max_stages, 128),
             nn.ReLU(),
-            CondConv2d(max_stages, 128, 64, 3, padding=1),
+            nn.Conv2d(128, 64, 3, padding=1),
+            CondChannelMask(max_stages, 64),
             nn.ReLU(),
-            CondConvTranspose2d(max_stages, 64, 64, 3, stride=2, padding=1, output_padding=1),
+            nn.ConvTranspose2d(64, 64, 3, stride=2, padding=1, output_padding=1),
+            CondChannelMask(max_stages, 64),
             nn.ReLU(),
-            CondConvTranspose2d(max_stages, 64, 64, 3, stride=2, padding=1, output_padding=1),
+            nn.ConvTranspose2d(64, 64, 3, stride=2, padding=1, output_padding=1),
+            CondChannelMask(max_stages, 64),
             nn.ReLU(),
             nn.Conv2d(64, num_options, 3, padding=1),
         )
@@ -308,23 +321,30 @@ class SVHNRefiner(ResidualRefiner):
         self.output_scale = nn.Parameter(torch.tensor(0.1))
         self.layers = Sequential(
             # Downsample the image to 8x8.
-            CondConv2d(max_stages, 3, 64, 5, stride=2, padding=2),
+            nn.Conv2d(3, 64, 5, stride=2, padding=2),
+            CondChannelMask(max_stages, 64),
             nn.ReLU(),
-            CondConv2d(max_stages, 64, 128, 5, stride=2, padding=2),
+            nn.Conv2d(64, 128, 5, stride=2, padding=2),
+            CondChannelMask(max_stages, 128),
             nn.ReLU(),
 
             # Process the downsampled image.
-            CondConv2d(max_stages, 128, 128, 3, padding=1),
+            nn.Conv2d(128, 128, 3, padding=1),
+            CondChannelMask(max_stages, 128),
             nn.ReLU(),
-            CondConv2d(max_stages, 128, 128, 3, padding=1),
+            nn.Conv2d(128, 128, 3, padding=1),
+            CondChannelMask(max_stages, 128),
             nn.ReLU(),
-            CondConv2d(max_stages, 128, 128, 3, padding=1),
+            nn.Conv2d(128, 128, 3, padding=1),
+            CondChannelMask(max_stages, 128),
             nn.ReLU(),
 
             # Upsample the image in a checkerboardless way.
-            CondConvTranspose2d(max_stages, 128, 64, 4, stride=2, padding=1),
+            nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1),
+            CondChannelMask(max_stages, 64),
             nn.ReLU(),
-            CondConvTranspose2d(max_stages, 64, 128, 4, stride=2, padding=1),
+            nn.ConvTranspose2d(64, 128, 4, stride=2, padding=1),
+            CondChannelMask(max_stages, 128),
             nn.ReLU(),
 
             # More powerful conditioning for output, which
@@ -354,10 +374,12 @@ class TextRefiner(ResidualRefiner):
             return ResidualBlock(
                 nn.ReLU(),
                 nn.GroupNorm(8, 128),
-                CondConv1d(max_stages, 128, 128, 3, stride=1, padding=dilation, dilation=dilation),
+                nn.Conv1d(128, 128, 3, stride=1, padding=dilation, dilation=dilation),
+                CondChannelMask(max_stages, 128),
                 nn.ReLU(),
                 nn.GroupNorm(8, 128),
-                CondConv1d(max_stages, 128, 128, 3, stride=1, padding=dilation, dilation=dilation),
+                nn.Conv1d(128, 128, 3, stride=1, padding=dilation, dilation=dilation),
+                CondChannelMask(max_stages, 128),
             )
 
         self.embed = nn.Sequential(
@@ -433,60 +455,21 @@ class CondModule(CondBlock):
         return self.module_list[stage](x)
 
 
-class CondConv2d(CondBlock):
+class CondChannelMask(CondBlock):
     """
-    A stage-conditioned convolution operator.
+    A module which multiplies the channels by a
+    stage-conditional vector.
     """
 
-    def __init__(self, num_stages, *args, **kwargs):
+    def __init__(self, num_stages, channels):
         super().__init__()
-        self.conv = nn.Conv2d(*args, **kwargs)
-        self.embeddings = nn.Parameter(torch.randn(num_stages, self.conv.out_channels))
+        self.embeddings = nn.Parameter(torch.randn(num_stages, channels))
 
     def forward(self, x, stage):
-        return self.conv(x) * self.embeddings[stage, :, None, None]
-
-
-class CondConvTranspose2d(CondBlock):
-    """
-    A stage-conditioned transposed convolution operator.
-    """
-
-    def __init__(self, num_stages, *args, **kwargs):
-        super().__init__()
-        self.conv = nn.ConvTranspose2d(*args, **kwargs)
-        self.embeddings = nn.Parameter(torch.randn(num_stages, self.conv.out_channels))
-
-    def forward(self, x, stage):
-        return self.conv(x) * self.embeddings[stage, :, None, None]
-
-
-class CondConv1d(CondBlock):
-    """
-    A stage-conditioned convolution operator.
-    """
-
-    def __init__(self, num_stages, *args, **kwargs):
-        super().__init__()
-        self.conv = nn.Conv1d(*args, **kwargs)
-        self.embeddings = nn.Parameter(torch.randn(num_stages, self.conv.out_channels))
-
-    def forward(self, x, stage):
-        return self.conv(x) * self.embeddings[stage, :, None]
-
-
-class CondConvTranspose1d(CondBlock):
-    """
-    A stage-conditioned transposed convolution operator.
-    """
-
-    def __init__(self, num_stages, *args, **kwargs):
-        super().__init__()
-        self.conv = nn.ConvTranspose1d(*args, **kwargs)
-        self.embeddings = nn.Parameter(torch.randn(num_stages, self.conv.out_channels))
-
-    def forward(self, x, stage):
-        return self.conv(x) * self.embeddings[stage, :, None]
+        scale = self.embeddings[None, stage]
+        while len(scale.shape) < len(x.shape):
+            scale = scale[..., None]
+        return x * scale
 
 
 class ResidualBlock(Sequential):
@@ -561,11 +544,40 @@ class CondGroupNorm(CondBlock):
         return self.gn(x) * w + b
 
 
-class DepthSepConv(nn.Module):
+class SepConv2d(nn.Module):
+    """
+    A depthwise-separable 2D convolution.
+    """
+
     def __init__(self, in_channels, out_channels, *args, **kwargs):
         super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
         self.spatial = nn.Conv2d(in_channels, in_channels, *args, groups=in_channels, **kwargs)
         self.depthwise = nn.Conv2d(out_channels, out_channels, 1)
 
     def forward(self, x):
-        return self.depthwise(self.spatial(x))
+        x = self.spatial(x)
+        x = F.relu(x)
+        x = self.depthwise(x)
+        return x
+
+
+class SepConvTranspose2d(nn.Module):
+    """
+    A depthwise-separable transposed 2D convolution.
+    """
+
+    def __init__(self, in_channels, out_channels, *args, **kwargs):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.spatial = nn.ConvTranspose2d(in_channels, in_channels, *args, groups=in_channels,
+                                          **kwargs)
+        self.depthwise = nn.Conv2d(out_channels, out_channels, 1)
+
+    def forward(self, x):
+        x = self.spatial(x)
+        x = F.relu(x)
+        x = self.depthwise(x)
+        return x
