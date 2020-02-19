@@ -26,7 +26,7 @@ class MNISTTrainer(ImageTrainer):
 
     def create_datasets(self):
         # Taken from pytorch MNIST demo.
-        kwargs = {'num_workers': 1, 'pin_memory': True} if self.use_cuda else {}
+        kwargs = {'num_workers': 0, 'pin_memory': True} if self.use_cuda else {}
         transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))

@@ -322,11 +322,9 @@ class SVHNRefiner(ResidualRefiner):
             nn.ReLU(),
 
             # Upsample the image in a checkerboardless way.
-            nn.Upsample(scale_factor=2),
-            CondConv2d(max_stages, 128, 64, 5, padding=2),
+            CondConvTranspose2d(max_stages, 128, 64, 4, stride=2, padding=1),
             nn.ReLU(),
-            nn.Upsample(scale_factor=2),
-            CondConv2d(max_stages, 64, 128, 5, padding=2),
+            CondConvTranspose2d(max_stages, 64, 128, 4, stride=2, padding=1),
             nn.ReLU(),
 
             # More powerful conditioning for output, which
