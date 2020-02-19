@@ -554,7 +554,7 @@ class SepConv2d(nn.Module):
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.spatial = nn.Conv2d(in_channels, in_channels, *args, groups=in_channels, **kwargs)
-        self.depthwise = nn.Conv2d(out_channels, out_channels, 1)
+        self.depthwise = nn.Conv2d(in_channels, out_channels, 1)
 
     def forward(self, x):
         x = self.spatial(x)
@@ -574,7 +574,7 @@ class SepConvTranspose2d(nn.Module):
         self.out_channels = out_channels
         self.spatial = nn.ConvTranspose2d(in_channels, in_channels, *args, groups=in_channels,
                                           **kwargs)
-        self.depthwise = nn.Conv2d(out_channels, out_channels, 1)
+        self.depthwise = nn.Conv2d(in_channels, out_channels, 1)
 
     def forward(self, x):
         x = self.spatial(x)
