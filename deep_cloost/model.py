@@ -410,7 +410,10 @@ class TextRefiner(ResidualRefiner):
         )
 
     def residuals(self, x, stage):
-        out = x.permute(0, 2, 1)
+        # Use probabilities and scale to have a closer-to-
+        # normal distribution.
+        out = torch.softmax(x, dim=-1) * math.sqrt(x.shape[-1])
+        out = out.permute(0, 2, 1)
         out = self.embed(out)
         out = out + self.pos_enc
         out = self.layers(out, stage)
