@@ -382,7 +382,11 @@ class TextRefiner(ResidualRefiner):
                 CondChannelMask(max_stages, 128),
                 nn.ReLU(),
                 nn.GroupNorm(8, 128),
-                nn.Conv1d(128, 128, 3, stride=1, padding=dilation, dilation=dilation),
+                nn.Conv1d(128, 512, 1),
+                CondChannelMask(max_stages, 512),
+                nn.ReLU(),
+                nn.GroupNorm(16, 512),
+                nn.Conv1d(512, 128, 1),
                 CondChannelMask(max_stages, 128),
             )
 
