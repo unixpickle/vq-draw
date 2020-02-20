@@ -230,7 +230,11 @@ class CIFARRefiner(ResidualRefiner):
                 CondChannelMask(max_stages, 256),
                 nn.ReLU(),
                 nn.GroupNorm(8, 256),
-                nn.Conv2d(256, 256, 3, padding=1),
+                nn.Conv2d(256, 1024, 1),
+                CondChannelMask(max_stages, 1024),
+                nn.ReLU(),
+                nn.GroupNorm(32, 1024),
+                nn.Conv2d(1024, 256, 1),
                 CondChannelMask(max_stages, 256),
             )
 
