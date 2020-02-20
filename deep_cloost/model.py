@@ -377,15 +377,15 @@ class TextRefiner(ResidualRefiner):
         def res_block(dilation):
             return ResidualBlock(
                 nn.ReLU(),
-                nn.GroupNorm(8, 128),
+                nn.LayerNorm((128, seq_len)),
                 nn.Conv1d(128, 128, 3, stride=1, padding=dilation, dilation=dilation),
                 CondChannelMask(max_stages, 128),
                 nn.ReLU(),
-                nn.GroupNorm(8, 128),
+                nn.LayerNorm((128, seq_len)),
                 nn.Conv1d(128, 512, 1),
                 CondChannelMask(max_stages, 512),
                 nn.ReLU(),
-                nn.GroupNorm(16, 512),
+                nn.LayerNorm((512, seq_len)),
                 nn.Conv1d(512, 128, 1),
                 CondChannelMask(max_stages, 128),
             )
@@ -409,7 +409,7 @@ class TextRefiner(ResidualRefiner):
             res_block(16),
             res_block(32),
             nn.ReLU(),
-            nn.GroupNorm(8, 128),
+            nn.LayerNorm((128, seq_len)),
             nn.Conv1d(128, num_options * vocab_size, 1),
         )
 
