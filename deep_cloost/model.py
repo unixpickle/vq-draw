@@ -410,6 +410,8 @@ class TextRefiner(ResidualRefiner):
             res_block(32),
             nn.ReLU(),
             nn.LayerNorm((128, seq_len)),
+            nn.Conv1d(128, 128, 1),
+            nn.ReLU(),
             nn.Conv1d(128, num_options * vocab_size, 1),
         )
 
