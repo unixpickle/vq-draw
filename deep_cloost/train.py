@@ -62,7 +62,7 @@ class Trainer(ABC):
         loaders = zip(self.cycle_batches(self.train_loader),
                       self.cycle_batches(self.test_loader))
         for i, (train_batch, test_batch) in enumerate(loaders):
-            if not i % self.args.save_interval:
+            if not i % self.args.step_interval:
                 if i:
                     self.optimizer.step()
                 self.optimizer.zero_grad()
