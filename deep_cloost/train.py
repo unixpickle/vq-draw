@@ -40,10 +40,12 @@ class Trainer(ABC):
         parser.add_argument('--checkpoint', default=self.default_checkpoint, type=str)
         parser.add_argument('--save-interval', default=10, type=int)
         parser.add_argument('--step-interval', default=1, type=int)
+        parser.add_argument('--step-limit', default=0, type=int)
 
         parser.add_argument('--grad-checkpoint', action='store_true')
         parser.add_argument('--grad-decay', default=0, type=float)
         parser.add_argument('--lr', default=0.001, type=float)
+        parser.add_argument('--lr-final', default=0, type=float)
         parser.add_argument('--aux-coeff', default=0.01, type=float)
         parser.add_argument('--epsilon', default=0, type=float)
         parser.add_argument('--final-coeff', default=0, type=float)
@@ -52,7 +54,10 @@ class Trainer(ABC):
 
     def main(self):
         """
-        Run the infinite training loop.
+        Run the training loop.
+
+        This may run forever, depending on the step limit
+        CLI argument.
         """
         if self.args.active_stages:
             self.model.num_stages = self.args.active_stages
@@ -64,8 +69,14 @@ class Trainer(ABC):
         for i, (train_batch, test_batch) in enumerate(loaders):
             if not i % self.args.step_interval:
                 if i:
+                    self.update_lr(i)
                     self.optimizer.step()
                 self.optimizer.zero_grad()
+
+            if self.args.step_limit and i == self.args.step_limit:
+                self.save()
+                return
+
             losses = self.model.train_quantities(train_batch,
                                                  checkpoint=self.args.grad_checkpoint,
                                                  epsilon=self.args.epsilon)
@@ -80,9 +91,7 @@ class Trainer(ABC):
                   (i, losses['final'].item(), test_losses['final'].item(), losses['entropy'],
                    losses['used']))
             if not i % self.args.save_interval:
-                self.save_checkpoint()
-                self.save_reconstructions()
-                self.save_samples()
+                self.save()
 
     def create_or_load_model(self):
         """
@@ -98,6 +107,27 @@ class Trainer(ABC):
         model.num_stages = self.args.stages
         model.grad_decay = self.args.grad_decay
         return model.to(self.device)
+
+    def save(self):
+        """
+        Save all the files that this model can produce.
+        """
+        self.save_checkpoint()
+        self.save_reconstructions()
+        self.save_samples()
+
+    def update_lr(self, step_idx):
+        """
+        Set the learning rate of the optimizer for the
+        current step number.
+        """
+        if not self.args.step_limit:
+            return
+        frac = step_idx / self.args.step_limit
+        lr = self.args.lr * (1 - frac) + self.args.lr_final * frac
+        for pg in self.optimizer.param_groups:
+            if 'lr' in pg:
+                pg['lr'] = lr
 
     def save_checkpoint(self):
         """
