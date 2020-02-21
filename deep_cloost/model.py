@@ -377,12 +377,16 @@ class TextRefiner(ResidualRefiner):
         def res_block(dilation):
             return ResidualBlock(
                 nn.ReLU(),
-                nn.GroupNorm(8, 128),
+                nn.LayerNorm((128, seq_len)),
                 nn.Conv1d(128, 128, 3, stride=1, padding=dilation, dilation=dilation),
                 CondChannelMask(max_stages, 128),
                 nn.ReLU(),
-                nn.GroupNorm(8, 128),
-                nn.Conv1d(128, 128, 3, stride=1, padding=dilation, dilation=dilation),
+                nn.LayerNorm((128, seq_len)),
+                nn.Conv1d(128, 512, 1),
+                CondChannelMask(max_stages, 512),
+                nn.ReLU(),
+                nn.LayerNorm((512, seq_len)),
+                nn.Conv1d(512, 128, 1),
                 CondChannelMask(max_stages, 128),
             )
 
@@ -405,12 +409,17 @@ class TextRefiner(ResidualRefiner):
             res_block(16),
             res_block(32),
             nn.ReLU(),
-            nn.GroupNorm(8, 128),
+            nn.LayerNorm((128, seq_len)),
+            nn.Conv1d(128, 128, 1),
+            nn.ReLU(),
             nn.Conv1d(128, num_options * vocab_size, 1),
         )
 
     def residuals(self, x, stage):
-        out = x.permute(0, 2, 1)
+        # Use probabilities and scale to have a closer-to-
+        # normal distribution.
+        out = torch.softmax(x, dim=-1) * math.sqrt(x.shape[-1])
+        out = out.permute(0, 2, 1)
         out = self.embed(out)
         out = out + self.pos_enc
         out = self.layers(out, stage)
