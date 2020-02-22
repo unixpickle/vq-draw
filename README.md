@@ -77,7 +77,7 @@ As a concrete example, using the first five stages from the pre-trained 10-stage
 
 60-bit latent space        |  30-bit latent space
 :-------------------------:|:-------------------------:
-![](images/mnist_samples_30bit.png) | ![](images/mnist_samples_60bit.png)
+![](images/mnist_samples_60bit.png) | ![](images/mnist_samples_30bit.png)
 
 # Future work
 
