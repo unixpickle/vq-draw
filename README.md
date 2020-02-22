@@ -48,7 +48,7 @@ To solve the above problems, we can use a slightly modified objective. First, we
 
 To track how well the refinements are distributed, we can look at the entropy of the distribution of latent components for single mini-batches. This metric is not perfect, but it does reveal when a model is not using many of its refinement options effectively. I have found that, with the objective function described above, the entropy typically rises very close to the theoretical limit of *log(K)* (although it cannot reach this limit with a finite batch size).
 
-# Model architecture
+## Model architecture
 
 The refinement network must take in a reconstruction and produce *K* refinements to this reconstruction. There are plenty of architectures that could serve this purpose, but I found two things to be universally beneficial:
 
@@ -57,17 +57,27 @@ The refinement network must take in a reconstruction and produce *K* refinements
 
 For all of my experiments, refinements are output as *residuals*. In other words, the network simply outputs deltas *[D<sub>1</sub>, ..., D<sub>K</sub>]* which are added to the current reconstruction R to produce refinements *[R + D<sub>1</sub>, ..., R + D<sub>K</sub>]*. This is motivated by the fact that roughly half of the deltas should have a positive dot product with the gradient of the reconstruction loss, so half of the refinements should be improvements (given small enough deltas).
 
-## Images
+### Images
 
-For images, a natural architecture for the refinement network is a CNN which downsamples the image, processes it, and then upsamples it again with transposed convolutions. A final convolutional head produces *(K*C)* channels, where *K* is the number of refinements and *C* is the number of channels in the reconstructions. Thus, most of the architecture does not grow with *K*, only the final layer.
+For images, a natural architecture for the refinement network is a CNN which downsamples the image, processes it, and then upsamples it again with transposed convolutions. A final convolutional head produces *(K x C)* channels, where *K* is the number of refinements and *C* is the number of channels in the reconstructions. Thus, most of the architecture does not grow with *K*, only the final layer.
 
 To condition CNN models on the stage index, there are layers after every convolution that multiply the channels by a per-stage mask vector. In particular, for every stage and convolutional layer, there is a different mask of shape [1 x C x 1 x 1] which is multiplied by the outputs of the convolutional layer.
 
 In most of my CNN models, I use [group normalization](https://arxiv.org/abs/1803.08494) after every ReLU nonlinearity. I chose group normalization instead of [batch normalization](https://arxiv.org/abs/1502.03167) for two reasons: 1) group normalization makes it simpler to use bigger batches via gradient accumulation, 2) batch normalization might unfairly help the refinement network propose refinements appropriate for each particular mini-batch.
 
-## Text
+### Text
 
 For text, I employ a network architecture similar to WaveNet, but with bi-directional dilated convolutions. **More details coming soon.**
+
+# Potential applications
+
+Since VQ-DRAW produces discrete latent codes, it naturally serves as a lossy compression algorithm. Furthermore, the sequential nature of the encoding process means that it is easy to trade off code length for compression quality.
+
+As a concrete example, using the first five stages from the pre-trained 10-stage MNIST model included in this repository will almost always result in a decent reconstruction that belongs to the same class.
+
+60-bit latent space        |  30-bit latent space
+:-------------------------:|:-------------------------:
+![](images/mnist_samples_30bit.png) | ![](images/mnist_samples_60bit.png)
 
 # Future work
 
