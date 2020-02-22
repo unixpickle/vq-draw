@@ -38,11 +38,32 @@ It should be noted that the encoding process keeps track of the current reconstr
 
 First note that it is possible to backpropagate through the encoding process, assuming that the choices for each latent component remain fixed. In other words, the final reconstruction error is locally differentiable, and we can use SGD to minimize it. However, the gradient for a given data point will ignore most of the outputs of the refinement network, since a specific refinement is selected at each stage of the encoding process and the remaining refinements are ignored.
 
-In particular, at stage *i*, our refinement network outputs refinements *[R<sub>i,1</sub>, ..., R<sub>i,k</sub>]*, and we select the best refinement and proceed to the next stage of encoding. The other refinements are not used and do not directly contribute to the final reconstruction loss. Furthermore, if refinement *R<sub>i,j</sub>* is never used for any sample in the dataset (perhaps because it has a bad set of initial biases), then there will be no gradient signal to improve *R<sub>i,j</sub>* so that it can be used for encodings later on in training.
+In particular, at stage *i*, the refinement network outputs refinements *[R<sub>i,1</sub>, ..., R<sub>i,k</sub>]*, and we select the best refinement and proceed to the next stage of encoding. The other refinements are not used and do not directly contribute to the final reconstruction loss. Furthermore, if refinement *R<sub>i,j</sub>* is never used for any sample in the dataset (perhaps because it has a bad set of initial biases), then there will be no gradient signal to improve *R<sub>i,j</sub>* so that it can be used for encodings later on in training.
 
 To solve the above problems, we can use a slightly modified objective. First, we directly minimize the reconstruction error for the chosen reconstruction **at every stage of encoding**. This was very beneficial in experiments, versus just optimizing the reconstruction error at the final encoding stage. Second, we introduce an auxiliary loss that minimizes a small coefficient times all of the reconstruction errors (even the unchosen ones): *α (R<sub>1,1</sub> + ... + R<sub>N,K</sub>)*. Thus, if a refinement option *R<sub>i,j</sub>* is never being used, it will gradually be pulled closer to the real refinement distribution until it finally is used to encode some sample in the dataset.
 
 To track how well the refinements are distributed, we can look at the entropy of the distribution of latent components for single mini-batches. This metric is not perfect, but it does reveal when a model is not using many of its refinement options effectively. I have found that, with the objective function described above, the entropy typically rises very close to the theoretical limit of *log(K)* (although it cannot reach this limit with a finite batch size).
+
+# Model architecture
+
+The refinement network must take in a reconstruction and produce *K* refinements to this reconstruction. There are plenty of architectures that could serve this purpose, but I found two things to be universally beneficial:
+
+ 1. **Stage conditioning:** the input to the refinement network is not just the current reconstruction x, but rather a tuple `(x, stage)`. This way, the network can perform different sorts of refinements at different stages, focusing on more fine-grained details at later stages of encoding. This resulted in major improvements on CIFAR-10, where the refinement sequence is an order of magnitude larger than the sequences for MNIST and SVHN.
+ 2. **Segmented models:** this is a special kind of conditioning, where entirely different refinement network parameters are used for different segments of stages. For example, the CIFAR experiments use a different network for each segment of 20 stages, so stages 1-20 are refined by a totally different set of network parameters than stages 20-40. This drastically improves reconstruction losses, which may either be caused by 1) the sheer number of extra parameters, 2) the refiner being able to focus on different aspects of the images at different parts of the encoding process. The later seems plausible, given the success of other stage conditioning mechanisms that don't introduce many additional parameters.
+
+For all of my experiments, refinements are output as *residuals*. In other words, the network simply outputs deltas *[D<sub>1</sub>, ..., D<sub>K</sub>]* which are added to the current reconstruction R to produce refinements *[R + D<sub>1</sub>, ..., R + D<sub>K</sub>]*. This is motivated by the fact that roughly half of the deltas should have a positive dot product with the gradient of the reconstruction loss, so half of the refinements should be improvements (given small enough deltas).
+
+## Images
+
+For images, a natural architecture for the refinement network is a CNN which downsamples the image, processes it, and then upsamples it again with transposed convolutions. A final convolutional head produces *(K*C)* channels, where *K* is the number of refinements and *C* is the number of channels in the reconstructions. Thus, most of the architecture does not grow with *K*, only the final layer.
+
+To condition CNN models on the stage index, there are layers after every convolution that multiply the channels by a per-stage mask vector. In particular, for every stage and convolutional layer, there is a different mask of shape [1 x C x 1 x 1] which is multiplied by the outputs of the convolutional layer.
+
+In most of my CNN models, I use [group normalization](https://arxiv.org/abs/1803.08494) after every ReLU nonlinearity. I chose group normalization instead of [batch normalization](https://arxiv.org/abs/1502.03167) for two reasons: 1) group normalization makes it simpler to use bigger batches via gradient accumulation, 2) batch normalization might unfairly help the refinement network propose refinements appropriate for each particular mini-batch.
+
+## Text
+
+For text, I employ a network architecture similar to WaveNet, but with bi-directional dilated convolutions. **More details coming soon.**
 
 # Future work
 
