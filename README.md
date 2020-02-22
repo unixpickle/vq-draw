@@ -2,7 +2,11 @@
 
 **VQ-DRAW** is a [vector quantized](https://en.wikipedia.org/wiki/Vector_quantization) [auto-encoder](https://en.wikipedia.org/wiki/Autoencoder) which encodes inputs in a sequential way similar to the [DRAW](https://arxiv.org/abs/1502.04623) architecture. Unlike [VQ-VAE](https://arxiv.org/abs/1711.00937), it can generate good samples without learning an autoregressive prior on top of the dicrete latents.
 
-In addition to this write-up and the code, I've provided notebooks to play around with some small pre-trained models. These are [mnist_demo.ipynb](mnist_demo.ipynb) and [svhn_demo.ipynb](svhn_demo.ipynb). They are intended to be easily runnable on a desktop PC, even without any GPU.
+In addition to this write-up and the code, I've provided notebooks to play around with some small pre-trained models. These are intended to be runnable on a desktop PC, even without any GPU. Here is a list:
+
+ * [mnist_demo.ipynb](mnist_demo.ipynb) - generate samples and intermediate refinements from an MNIST model
+ * [svhn_demo.ipynb](svhn_demo.ipynb) - like mnist_demo.ipynb, but for SVHN.
+ * [mnist_classify.ipynb](mnist_classify.ipynb) - train an MNIST classifier on top of features from a pre-trained MNIST encoder.
 
 # Related work
 
