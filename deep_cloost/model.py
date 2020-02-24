@@ -403,31 +403,41 @@ class SVHNRefiner(ResidualRefiner):
             nn.Conv2d(3, 64, 5, stride=2, padding=2),
             CondChannelMask(max_stages, 64),
             nn.ReLU(),
+            nn.GroupNorm(4, 64),
             nn.Conv2d(64, 128, 5, stride=2, padding=2),
             CondChannelMask(max_stages, 128),
             nn.ReLU(),
+            nn.GroupNorm(8, 128),
 
             # Process the downsampled image.
             nn.Conv2d(128, 128, 3, padding=1),
             CondChannelMask(max_stages, 128),
             nn.ReLU(),
-            nn.Conv2d(128, 128, 3, padding=1),
+            nn.GroupNorm(8, 128),
+            nn.Conv2d(128, 256, 3, padding=1),
+            CondChannelMask(max_stages, 256),
+            nn.ReLU(),
+            nn.GroupNorm(8, 256),
+            nn.Conv2d(256, 128, 3, padding=1),
             CondChannelMask(max_stages, 128),
             nn.ReLU(),
-            nn.Conv2d(128, 128, 3, padding=1),
-            CondChannelMask(max_stages, 128),
-            nn.ReLU(),
+            nn.GroupNorm(8, 128),
 
-            # Upsample the image in a checkerboardless way.
-            nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1),
-            CondChannelMask(max_stages, 64),
-            nn.ReLU(),
-            nn.ConvTranspose2d(64, 128, 4, stride=2, padding=1),
+            # Upsample the image.
+            nn.ConvTranspose2d(128, 128, 4, stride=2, padding=1),
             CondChannelMask(max_stages, 128),
             nn.ReLU(),
+            nn.GroupNorm(8, 128),
+            nn.ConvTranspose2d(128, 128, 4, stride=2, padding=1),
+            CondChannelMask(max_stages, 128),
+            nn.ReLU(),
+            nn.GroupNorm(8, 128),
 
             # More powerful conditioning for output, which
             # gives better results.
+            nn.Conv2d(128, 128, 3, padding=1),
+            CondChannelMask(max_stages, 128),
+            nn.ReLU(),
             CondModule(max_stages, lambda: nn.Conv2d(128, num_options * 3, 1)),
         )
 
