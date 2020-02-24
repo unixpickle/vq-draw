@@ -1,14 +1,21 @@
+import math
+
 import torch
 from torchvision import datasets, transforms
 
 from deep_cloost.losses import MSELoss
-from deep_cloost.model import Encoder, SVHNRefiner
+from deep_cloost.model import Encoder, SVHNRefiner, SegmentRefiner
 from deep_cloost.train import ImageTrainer
 
 IMG_SIZE = 32
 
 
-class MNISTTrainer(ImageTrainer):
+class SVHNTrainer(ImageTrainer):
+    def arg_parser(self):
+        res = super().arg_parser()
+        res.add_argument('--segment', default=5, type=int)
+        return res
+
     def denormalize_image(self, img):
         return img*0.5 + 0.5
 
@@ -40,11 +47,17 @@ class MNISTTrainer(ImageTrainer):
         return train_loader, test_loader
 
     def create_model(self):
+        def make_refiner():
+            return SVHNRefiner(self.args.options, self.args.segment)
+
+        num_refiners = int(math.ceil(self.args.stages / self.args.segment))
+        refiner = SegmentRefiner(self.args.segment, *[make_refiner() for _ in range(num_refiners)])
+
         return Encoder(shape=self.shape,
                        options=self.args.options,
-                       refiner=SVHNRefiner(self.args.options, self.args.stages),
+                       refiner=refiner,
                        loss_fn=MSELoss())
 
 
 if __name__ == '__main__':
-    MNISTTrainer().main()
+    SVHNTrainer().main()

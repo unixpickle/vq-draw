@@ -10,7 +10,7 @@ from deep_cloost.train import ImageTrainer
 IMG_SIZE = 128
 
 
-class CIFARTrainer(ImageTrainer):
+class CelebTrainer(ImageTrainer):
     def arg_parser(self):
         res = super().arg_parser()
         res.add_argument('--segment', default=10, type=int)
@@ -64,4 +64,4 @@ class CIFARTrainer(ImageTrainer):
 
 
 if __name__ == '__main__':
-    CIFARTrainer().main()
+    CelebTrainer().main()
