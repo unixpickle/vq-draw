@@ -267,6 +267,9 @@ class CIFARRefiner(ResidualRefiner):
             nn.GroupNorm(8, 128),
 
             # Generate option outputs.
+            nn.Conv2d(128, 128, 3, padding=1),
+            CondChannelMask(max_stages, 128),
+            nn.ReLU(),
             nn.Conv2d(128, 3 * self.num_options, 5, padding=2),
         )
 
