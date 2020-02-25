@@ -42,6 +42,9 @@ class Trainer(ABC):
         parser.add_argument('--step-interval', default=1, type=int)
         parser.add_argument('--step-limit', default=0, type=int)
 
+        if self.default_segment is not None:
+            parser.add_argument('--segment', default=self.default_segment, type=int)
+
         parser.add_argument('--grad-checkpoint', action='store_true')
         parser.add_argument('--grad-decay', default=0, type=float)
         parser.add_argument('--lr', default=0.001, type=float)
@@ -160,6 +163,14 @@ class Trainer(ABC):
     def default_stages(self):
         """
         Get the default number of stages for the CLI.
+        """
+        pass
+
+    @abstractproperty
+    def default_segment(self):
+        """
+        Get the default segment length, or None to
+        disable segments.
         """
         pass
 

@@ -13,7 +13,6 @@ class WikiText2Trainer(TextTrainer):
     def arg_parser(self):
         parser = super().arg_parser()
         parser.add_argument('--bptt-len', default=128, type=int)
-        parser.add_argument('--segment', default=10, type=int)
         return parser
 
     @property
@@ -27,6 +26,10 @@ class WikiText2Trainer(TextTrainer):
     @property
     def default_stages(self):
         return 50
+
+    @property
+    def default_segment(self):
+        return 10
 
     @property
     def shape(self):

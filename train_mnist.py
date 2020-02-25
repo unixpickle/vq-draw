@@ -21,6 +21,10 @@ class MNISTTrainer(ImageTrainer):
         return 10
 
     @property
+    def default_segment(self):
+        return None
+
+    @property
     def shape(self):
         return (1, IMG_SIZE, IMG_SIZE)
 

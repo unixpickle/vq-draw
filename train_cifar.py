@@ -11,11 +11,6 @@ IMG_SIZE = 32
 
 
 class CIFARTrainer(ImageTrainer):
-    def arg_parser(self):
-        res = super().arg_parser()
-        res.add_argument('--segment', default=20, type=int)
-        return res
-
     def denormalize_image(self, img):
         return img*0.5 + 0.5
 
@@ -26,6 +21,10 @@ class CIFARTrainer(ImageTrainer):
     @property
     def default_stages(self):
         return 50
+
+    @property
+    def default_segment(self):
+        return 20
 
     @property
     def shape(self):

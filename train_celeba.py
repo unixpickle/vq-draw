@@ -11,11 +11,6 @@ IMG_SIZE = 128
 
 
 class CelebTrainer(ImageTrainer):
-    def arg_parser(self):
-        res = super().arg_parser()
-        res.add_argument('--segment', default=10, type=int)
-        return res
-
     def denormalize_image(self, img):
         return img*0.5 + 0.5
 
@@ -26,6 +21,10 @@ class CelebTrainer(ImageTrainer):
     @property
     def default_stages(self):
         return 50
+
+    @property
+    def default_segment(self):
+        return 10
 
     @property
     def shape(self):
