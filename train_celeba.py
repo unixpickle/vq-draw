@@ -7,7 +7,7 @@ from deep_cloost.losses import MSELoss
 from deep_cloost.model import Encoder, CelebARefiner, SegmentRefiner
 from deep_cloost.train import ImageTrainer
 
-IMG_SIZE = 128
+IMG_SIZE = 64
 
 
 class CelebTrainer(ImageTrainer):

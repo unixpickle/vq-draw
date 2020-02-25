@@ -296,11 +296,11 @@ class CelebARefiner(ResidualRefiner):
                 CondChannelMask(max_stages, 128),
                 nn.ReLU(),
                 nn.GroupNorm(8, 128),
-                nn.Conv2d(128, 256, 1),
-                CondChannelMask(max_stages, 256),
+                nn.Conv2d(128, 512, 1),
+                CondChannelMask(max_stages, 512),
                 nn.ReLU(),
-                nn.GroupNorm(8, 256),
-                nn.Conv2d(256, 128, 1),
+                nn.GroupNorm(16, 512),
+                nn.Conv2d(512, 128, 1),
                 CondChannelMask(max_stages, 128),
             )
 
@@ -318,6 +318,10 @@ class CelebARefiner(ResidualRefiner):
             nn.ReLU(),
             nn.GroupNorm(8, 128),
 
+            res_block(),
+            res_block(),
+            res_block(),
+            res_block(),
             res_block(),
             res_block(),
 
