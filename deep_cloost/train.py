@@ -223,6 +223,11 @@ class ImageTrainer(Trainer):
     A Trainer for image datasets.
     """
 
+    def arg_parser(self):
+        res = super().arg_parser()
+        res.add_argument('--grid-size', default=5, type=int)
+        return res
+
     def save_reconstructions(self):
         """
         Save a reconstruction grid to a file.
@@ -263,7 +268,7 @@ class ImageTrainer(Trainer):
         """
         Determine the number of images to save.
         """
-        return 5
+        return self.args.grid_size
 
     @abstractmethod
     def denormalize_image(self, img):
