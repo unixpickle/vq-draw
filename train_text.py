@@ -4,9 +4,9 @@ import torch
 from torchtext.data import Field, BPTTIterator
 from torchtext.datasets import WikiText2
 
-from deep_cloost.losses import SoftmaxLoss
-from deep_cloost.model import Encoder, TextRefiner, SegmentRefiner
-from deep_cloost.train import TextTrainer
+from vq_draw.losses import SoftmaxLoss
+from vq_draw.model import Encoder, TextRefiner, SegmentRefiner
+from vq_draw.train import TextTrainer
 
 
 class WikiText2Trainer(TextTrainer):

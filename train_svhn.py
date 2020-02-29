@@ -3,9 +3,9 @@ import math
 import torch
 from torchvision import datasets, transforms
 
-from deep_cloost.losses import MSELoss
-from deep_cloost.model import Encoder, SVHNRefiner, SegmentRefiner
-from deep_cloost.train import ImageTrainer
+from vq_draw.losses import MSELoss
+from vq_draw.model import Encoder, SVHNRefiner, SegmentRefiner
+from vq_draw.train import ImageTrainer
 
 IMG_SIZE = 32
 
