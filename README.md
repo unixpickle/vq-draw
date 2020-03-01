@@ -13,6 +13,7 @@ In addition to the code for training, I've provided notebooks to play around wit
 ```
 python -u train_mnist.py --batch 32 --step-limit 50000 --save-interval 500
 python -u train_svhn.py --batch 32 --step-interval 16 --step-limit 70000 --save-interval 500
+python -u train_cifar.py --batch 32 --step-interval 16 --step-limit 34811 --save-interval 500 --grad-checkpoint
 ```
 
 # How it works

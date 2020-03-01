@@ -20,11 +20,11 @@ class CIFARTrainer(ImageTrainer):
 
     @property
     def default_stages(self):
-        return 50
+        return 100
 
     @property
     def default_segment(self):
-        return 20
+        return 10
 
     @property
     def shape(self):
