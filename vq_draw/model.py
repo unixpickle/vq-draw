@@ -121,7 +121,7 @@ class Encoder(nn.Module):
         encodings = []
         all_losses = []
         for i in stages:
-            new_outputs, new_states = self.apply_stage(i, current_outputs, states)
+            new_outputs, new_states = self.apply_stage(current_outputs, states, i)
             losses = self.loss_fn.loss_grid(new_outputs, inputs[:, None])
             all_losses.append(losses)
             indices = torch.argmin(losses, dim=1)
@@ -142,7 +142,7 @@ class Encoder(nn.Module):
                 states,
                 torch.stack(all_losses, dim=1))
 
-    def apply_stage(self, idx, x, states):
+    def apply_stage(self, x, states, idx):
         """
         Apply a stage (number idx) to a batch of inputs x
         and get a batch of refinement proposals.
@@ -192,7 +192,7 @@ class Encoder(nn.Module):
         current_outputs = torch.zeros((codes.shape[0],) + self.shape, device=codes.device)
         states = self.refiner.init_state(codes.shape[0])
         for i in range(num_stages):
-            new_outputs, new_states = self.apply_stage(i, current_outputs, states)
+            new_outputs, new_states = self.apply_stage(current_outputs, states, i)
             current_outputs = new_outputs[range(new_outputs.shape[0]), codes[:, i]]
             states = new_states[range(new_states.shape[0]), codes[:, i]]
         return current_outputs
