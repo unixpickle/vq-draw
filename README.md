@@ -2,6 +2,8 @@
 
 **VQ-DRAW** is a discrete [auto-encoder](https://en.wikipedia.org/wiki/Autoencoder) which encodes inputs in a sequential way similar to the [DRAW](https://arxiv.org/abs/1502.04623) architecture. Unlike [VQ-VAE](https://arxiv.org/abs/1711.00937), VQ-DRAW can generate good samples without learning an autoregressive prior on top of the dicrete latents.
 
+This repository is still being used for active experimentation and research. See the [official-release](https://github.com/unixpickle/vq-draw/tree/official-release) branch for the version of the source code that came with the initial paper and blog post.
+
 In addition to the code for training, I've provided notebooks to play around with some small pre-trained models. These are intended to be runnable on a desktop PC, even without any GPU. Here is a list:
 
  * [mnist_demo.ipynb](mnist_demo.ipynb) - generate samples and intermediate refinements from an MNIST model
