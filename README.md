@@ -8,6 +8,15 @@ In addition to the code for training, I've provided notebooks to play around wit
  * [svhn_demo.ipynb](svhn_demo.ipynb) - like mnist_demo.ipynb, but for SVHN.
  * [mnist_classify.ipynb](mnist_classify.ipynb) - train an MNIST classifier on top of features from a pre-trained MNIST encoder.
 
+# Dependencies
+
+All of these experiments use PyTorch. I used Python 3.6.1, but future versions of Python should work as well. Here are package versions I used:
+
+```
+torch==1.4.0
+torchvision=0.5.0
+```
+
 # Running experiments
 
 ```
@@ -16,6 +25,23 @@ python -u train_svhn.py --batch 32 --step-interval 16 --step-limit 70000 --save-
 python -u train_cifar.py --batch 32 --step-interval 16 --step-limit 34811 --save-interval 500 --grad-checkpoint
 python -u train_celeba.py --batch 32 --step-interval 16 --step-limit 36194 --save-interval 500 --grad-checkpoint
 ```
+
+# Results
+
+Here are samples from the trained VQ-DRAW models:
+
+<table>
+<tbody>
+    <tr>
+        <td><img src="images/mnist_samples_60bit.png"></td>
+        <td><img src="images/svhn_samples.png"></td>
+    </tr>
+    <tr>
+        <td><img src="images/celeb_samples.png"></td>
+        <td><img src="images/cifar_samples.png"></td>
+    </tr>
+</tbody>
+</table>
 
 # How it works
 
