@@ -232,6 +232,9 @@ class Refiner(nn.Module):
             x: the input batch.
             state: the state batch, or None.
             stage: the stage index.
+
+        Returns:
+            A tuple of (options, option_states).
         """
         pass
 
