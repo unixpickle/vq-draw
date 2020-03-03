@@ -33,12 +33,12 @@ Here are samples from the trained VQ-DRAW models:
 <table>
 <tbody>
     <tr>
-        <td><img src="images/mnist_samples_60bit.png"></td>
-        <td><img src="images/svhn_samples.png"></td>
+        <td><img src="images/mnist_samples_60bit.png" width="200"></td>
+        <td><img src="images/svhn_samples.png" width="200"></td>
     </tr>
     <tr>
-        <td><img src="images/celeb_samples.png"></td>
-        <td><img src="images/cifar_samples.png"></td>
+        <td><img src="images/celeb_samples.png" width="200"></td>
+        <td><img src="images/cifar_samples.png" width="200"></td>
     </tr>
 </tbody>
 </table>
