@@ -28,9 +28,13 @@ class LossFunc(nn.Module):
 
 class MSELoss(LossFunc):
     def forward(self, x, y):
+        if len(x.shape) > len(y.shape):
+            x = x[..., 0].contiguous()
         return torch.mean(torch.pow(x - y, 2))
 
     def loss_grid(self, x, y):
+        if len(x.shape) > len(y.shape):
+            x = x[..., 0].contiguous()
         return torch.mean(torch.pow(x - y, 2), dim=tuple(range(2, len(x.shape))))
 
 

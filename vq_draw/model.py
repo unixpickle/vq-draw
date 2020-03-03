@@ -354,13 +354,12 @@ class MNISTRefiner(ResidualRefiner):
     A refiner module appropriate for the MNIST dataset.
     """
 
-    def __init__(self, num_options, max_stages, gaussian=False):
+    def __init__(self, num_options, max_stages):
         super().__init__()
         self.num_options = num_options
-        self.gaussian = gaussian
         self.output_scale = nn.Parameter(torch.tensor(0.1))
         self.layers = Sequential(
-            nn.Conv2d(1 if not gaussian else 2, 32, 3, stride=2, padding=1),
+            nn.Conv2d(5, 32, 3, stride=2, padding=1),
             CondChannelMask(max_stages, 32),
             nn.ReLU(),
             nn.Conv2d(32, 64, 3, stride=2, padding=1),
@@ -381,19 +380,16 @@ class MNISTRefiner(ResidualRefiner):
             nn.ConvTranspose2d(64, 64, 4, stride=2, padding=1),
             CondChannelMask(max_stages, 64),
             nn.ReLU(),
-            nn.Conv2d(64, num_options if not gaussian else num_options*2, 3, padding=1),
+            nn.Conv2d(64, num_options * 5, 3, padding=1),
         )
 
     def residuals(self, x, stage):
-        if self.gaussian:
-            means = x[..., 0]
-            stds = torch.exp(x[..., 1])
-            x = torch.cat([means, stds], dim=1)
+        x = x.permute(0, 1, 4, 2, 3)
+        x = x.view(x.shape[0], -1, *x.shape[3:])
         x = self.layers(x, stage) * self.output_scale
-        if self.gaussian:
-            x = x.view(x.shape[0], -1, 2, *x.shape[2:])
-            x = x.permute(0, 1, 3, 4, 2).contiguous()
-        return x.view(x.shape[0], self.num_options, 1, *x.shape[2:])
+        x = x.view(x.shape[0], -1, 5, *x.shape[2:])
+        x = x.permute(0, 1, 3, 4, 2).contiguous()
+        return x.view(x.shape[0], self.num_options, 1, *x.shape[2:4], 5)
 
 
 class SVHNRefiner(ResidualRefiner):
