@@ -50,7 +50,7 @@ class GaussianLoss(LossFunc):
         mean = x[..., 0].contiguous()
         log_std = x[..., 1].contiguous()
         std = torch.exp(log_std)
-        return -0.5 * (torch.pow((y - mean) / std, 2) + (log_std + math.log(2 * math.pi)))
+        return -0.5 * (torch.pow((y - mean) / std, 2) + 2 * log_std + math.log(2 * math.pi))
 
 
 class SoftmaxLoss(LossFunc):
