@@ -30,7 +30,7 @@ class MNISTTrainer(ImageTrainer):
 
     @property
     def shape(self):
-        return (1, IMG_SIZE, IMG_SIZE, 5)
+        return (1, IMG_SIZE, IMG_SIZE)
 
     def create_datasets(self):
         # Taken from pytorch MNIST demo.
