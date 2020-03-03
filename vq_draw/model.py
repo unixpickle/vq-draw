@@ -77,8 +77,8 @@ class Encoder(nn.Module):
         Returns:
             A tuple (encodings, reconstructions, losses):
               encodings: an [N x num_stages] tensor.
-              reconstructions: a tensor like of parameters
-                to predict the outputs.
+              reconstructions: a tensor of parameters to
+                predict the outputs.
               losses: an [N x num_stages x options] tensor.
         """
         current_outputs = torch.zeros((inputs.shape[0], *self.shape), device=inputs.device)
