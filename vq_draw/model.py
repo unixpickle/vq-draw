@@ -204,9 +204,12 @@ class SegmentRefiner(nn.Module):
         self.seg_len = seg_len
         self.segments = nn.ModuleList(segments)
 
-    def forward(self, x, stage):
+    def init_state(self, batch):
+        return self.segments[0].init_state(batch)
+
+    def forward(self, x, state, stage):
         seg = self.segments[stage // self.seg_len]
-        return seg(x, stage % self.seg_len)
+        return seg(x, state, stage % self.seg_len)
 
 
 class Refiner(nn.Module):
@@ -270,6 +273,7 @@ class CIFARRefiner(ResidualRefiner):
         super().__init__()
         self.num_options = num_options
         self.output_scale = nn.Parameter(torch.tensor(0.01))
+        self.initial_state = nn.Parameter(torch.randn(state_dim, 32, 32))
 
         def res_block():
             return ResidualBlock(
