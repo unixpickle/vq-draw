@@ -1,4 +1,5 @@
 from abc import abstractmethod
+import math
 
 import torch
 import torch.nn as nn
@@ -31,6 +32,25 @@ class MSELoss(LossFunc):
 
     def loss_grid(self, x, y):
         return torch.mean(torch.pow(x - y, 2), dim=tuple(range(2, len(x.shape))))
+
+
+class GaussianLoss(LossFunc):
+    """
+    A gaussian log-likelihood loss for inputs with a final
+    dimension of 2 (for mean and log standard deviations).
+    """
+
+    def forward(self, x, y):
+        return -torch.mean(self.log_probs(x, y))
+
+    def loss_grid(self, x, y):
+        return -torch.mean(self.log_probs(x, y), dim=tuple(range(2, len(y.shape))))
+
+    def log_probs(self, x, y):
+        mean = x[..., 0].contiguous()
+        log_std = x[..., 1].contiguous()
+        std = torch.exp(log_std)
+        return -0.5 * (torch.pow((y - mean) / std, 2) + (log_std + math.log(2 * math.pi)))
 
 
 class SoftmaxLoss(LossFunc):

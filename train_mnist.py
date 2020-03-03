@@ -1,7 +1,7 @@
 import torch
 from torchvision import datasets, transforms
 
-from vq_draw.losses import MSELoss
+from vq_draw.losses import MSELoss, GaussianLoss
 from vq_draw.model import Encoder, MNISTRefiner
 from vq_draw.train import ImageTrainer
 
@@ -11,6 +11,10 @@ IMG_SIZE = 28
 class MNISTTrainer(ImageTrainer):
     def denormalize_image(self, img):
         return img*0.3081 + 0.1307
+
+    @property
+    def supports_gaussian(self):
+        return True
 
     @property
     def default_checkpoint(self):
@@ -26,6 +30,8 @@ class MNISTTrainer(ImageTrainer):
 
     @property
     def shape(self):
+        if self.args.gaussian:
+            return (1, IMG_SIZE, IMG_SIZE, 2)
         return (1, IMG_SIZE, IMG_SIZE)
 
     def create_datasets(self):
@@ -49,8 +55,9 @@ class MNISTTrainer(ImageTrainer):
     def create_model(self):
         return Encoder(shape=self.shape,
                        options=self.args.options,
-                       refiner=MNISTRefiner(self.args.options, self.args.stages),
-                       loss_fn=MSELoss())
+                       refiner=MNISTRefiner(self.args.options, self.args.stages,
+                                            gaussian=self.args.gaussian),
+                       loss_fn=MSELoss() if not self.args.gaussian else GaussianLoss())
 
 
 if __name__ == '__main__':

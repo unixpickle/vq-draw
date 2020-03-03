@@ -226,6 +226,8 @@ class ImageTrainer(Trainer):
     def arg_parser(self):
         res = super().arg_parser()
         res.add_argument('--grid-size', default=5, type=int)
+        if self.supports_gaussian:
+            res.add_argument('--gaussian', action='store_true')
         return res
 
     def save_reconstructions(self):
@@ -235,6 +237,7 @@ class ImageTrainer(Trainer):
         data = self.gather_samples(self.test_loader, self.image_grid_size ** 2).to(self.device)
         with torch.no_grad():
             recons = self.model.reconstruct(data)
+        recons = self.output_mode(recons)
         img = torch.cat([data, recons], dim=-1)
         self.save_grid('renderings.png', img)
 
@@ -246,16 +249,16 @@ class ImageTrainer(Trainer):
                                 size=(self.image_grid_size**2, self.model.num_stages))
         with torch.no_grad():
             img = self.model.decode(latents.to(self.device))
-        self.save_grid('samples.png', img)
+        self.save_grid('samples.png', self.output_mode(img))
 
     def save_grid(self, path, images):
         """
         Save an arbitrary grid of images, where the images
         are of batch size self.image_grid_size**2, and
         have all but the last dimension in common with
-        self.shape.
+        self.mode_shape.
         """
-        img = images.view(self.image_grid_size**2, *self.shape[:-1], -1)
+        img = images.view(self.image_grid_size**2, *self.mode_shape[:-1], -1)
         img = img.permute(0, 2, 3, 1).cpu().numpy()
         img = np.clip(self.denormalize_image(img), 0, 1)
         img = (img * 255).astype('uint8')
@@ -263,12 +266,33 @@ class ImageTrainer(Trainer):
         grid = np.concatenate(img.reshape(new_shape), axis=-2).squeeze()
         Image.fromarray(grid).save(path)
 
+    def output_mode(self, outputs):
+        if len(outputs.shape) == 5:
+            # Only use means of the gaussian.
+            return outputs[..., 0].contiguous()
+        return outputs
+
+    @property
+    def mode_shape(self):
+        if len(self.shape) == 4:
+            # Only use means of the gaussian.
+            return self.shape[:-1]
+        return self.shape
+
     @property
     def image_grid_size(self):
         """
         Determine the number of images to save.
         """
         return self.args.grid_size
+
+    @property
+    def supports_gaussian(self):
+        """
+        Override and return True if gaussian outputs are
+        allowed with a flag.
+        """
+        return False
 
     @abstractmethod
     def denormalize_image(self, img):
