@@ -266,7 +266,7 @@ class CIFARRefiner(ResidualRefiner):
     A refiner module appropriate for the CIFAR dataset.
     """
 
-    def __init__(self, num_options, max_stages):
+    def __init__(self, num_options, max_stages, state_dim=4):
         super().__init__()
         self.num_options = num_options
         self.output_scale = nn.Parameter(torch.tensor(0.01))
@@ -289,7 +289,7 @@ class CIFARRefiner(ResidualRefiner):
 
         self.layers = Sequential(
             # Reduce spatial resolution.
-            nn.Conv2d(3, 64, 5, stride=2, padding=2),
+            nn.Conv2d(3 + state_dim, 64, 5, stride=2, padding=2),
             nn.ReLU(),
             nn.GroupNorm(8, 64),
             nn.Conv2d(64, 128, 5, stride=2, padding=2),
@@ -319,12 +319,17 @@ class CIFARRefiner(ResidualRefiner):
             nn.Conv2d(128, 128, 3, padding=1),
             CondChannelMask(max_stages, 128),
             nn.ReLU(),
-            nn.Conv2d(128, 3 * self.num_options, 5, padding=2),
+            nn.Conv2d(128, (3 + state_dim) * self.num_options, 5, padding=2),
         )
 
+    def init_state(self, batch):
+        return self.initial_state[None].repeat(batch, 1, 1, 1)
+
     def residuals(self, x, state, stage):
+        x = torch.cat([x, state], dim=1)
         x = self.layers(x, stage) * self.output_scale
-        return x.view(x.shape[0], self.num_options, 3, *x.shape[2:]), None
+        x = x.view(x.shape[0], self.num_options, -1, *x.shape[2:])
+        return x[:, :, :3].contiguous(), x[:, :, 3:].contiguous()
 
 
 class CelebARefiner(ResidualRefiner):
