@@ -273,6 +273,7 @@ class CIFARRefiner(ResidualRefiner):
         super().__init__()
         self.num_options = num_options
         self.output_scale = nn.Parameter(torch.tensor(0.01))
+        self.state_scale = nn.Parameter(torch.tensor(0.01))
         self.initial_state = nn.Parameter(torch.randn(state_dim, 32, 32))
 
         def res_block():
@@ -333,7 +334,8 @@ class CIFARRefiner(ResidualRefiner):
         x = torch.cat([x, state], dim=1)
         x = self.layers(x, stage)
         x = x.view(x.shape[0], self.num_options, -1, *x.shape[2:])
-        return x[:, :, :3].contiguous() * self.output_scale, x[:, :, 3:].contiguous()
+        return (x[:, :, :3].contiguous() * self.output_scale,
+                x[:, :, 3:].contiguous() * self.state_scale)
 
 
 class CelebARefiner(ResidualRefiner):
