@@ -274,7 +274,7 @@ class CIFARRefiner(ResidualRefiner):
         self.num_options = num_options
         self.output_scale = nn.Parameter(torch.tensor(0.01))
         self.state_scale = nn.Parameter(torch.tensor(0.01))
-        self.initial_state = nn.Parameter(torch.randn(state_dim, 32, 32))
+        self.initial_state = nn.Parameter(torch.zeros(state_dim, 32, 32))
 
         def res_block():
             return ResidualBlock(
