@@ -272,7 +272,7 @@ class CIFARRefiner(ResidualRefiner):
     def __init__(self, num_options, max_stages, state_dim=4):
         super().__init__()
         self.num_options = num_options
-        self.output_scale = nn.Parameter(torch.tensor(0.01))
+        self.output_scale = nn.Parameter(torch.tensor(1.0))
         self.state_scale = nn.Parameter(torch.tensor(0.01))
         self.initial_state = nn.Parameter(torch.zeros(state_dim, 32, 32))
 
@@ -292,15 +292,25 @@ class CIFARRefiner(ResidualRefiner):
                 CondChannelMask(max_stages, 256),
             )
 
-        self.layers = Sequential(
-            # Reduce spatial resolution.
-            nn.Conv2d(3 + state_dim, 64, 5, stride=2, padding=2),
+        self.image_input = Sequential(
+            nn.Conv2d(3, 64, 5, stride=2, padding=2),
             nn.ReLU(),
             nn.GroupNorm(8, 64),
             nn.Conv2d(64, 128, 5, stride=2, padding=2),
             nn.ReLU(),
             nn.GroupNorm(8, 128),
+        )
 
+        self.state_input = Sequential(
+            nn.Conv2d(state_dim, 64, 5, stride=2, padding=2),
+            nn.ReLU(),
+            nn.GroupNorm(8, 64),
+            nn.Conv2d(64, 128, 5, stride=2, padding=2),
+            nn.ReLU(),
+            nn.GroupNorm(8, 128),
+        )
+
+        self.layers = Sequential(
             nn.Conv2d(128, 256, 3, padding=1),
             CondChannelMask(max_stages, 256),
             res_block(),
@@ -331,7 +341,7 @@ class CIFARRefiner(ResidualRefiner):
         return self.initial_state[None].repeat(batch, 1, 1, 1)
 
     def residuals(self, x, state, stage):
-        x = torch.cat([x, state], dim=1)
+        x = self.image_input(x, stage) * self.state_input(state, stage)
         x = self.layers(x, stage)
         x = x.view(x.shape[0], self.num_options, -1, *x.shape[2:])
         return (x[:, :, :3].contiguous() * self.output_scale,
