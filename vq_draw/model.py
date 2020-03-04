@@ -260,7 +260,7 @@ class ResidualRefiner(Refiner):
     def forward(self, x, state, stage):
         options, option_states = self.residuals(x, state, stage)
         if state is not None:
-            state = state[:, None] + option_states
+            state = option_states
         return x[:, None] + options, state
 
 
@@ -331,9 +331,9 @@ class CIFARRefiner(ResidualRefiner):
 
     def residuals(self, x, state, stage):
         x = torch.cat([x, state], dim=1)
-        x = self.layers(x, stage) * self.output_scale
+        x = self.layers(x, stage)
         x = x.view(x.shape[0], self.num_options, -1, *x.shape[2:])
-        return x[:, :, :3].contiguous(), x[:, :, 3:].contiguous()
+        return x[:, :, :3].contiguous() * self.output_scale, x[:, :, 3:].contiguous()
 
 
 class CelebARefiner(ResidualRefiner):
