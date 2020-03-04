@@ -19,11 +19,15 @@ torchvision=0.5.0
 
 # Running experiments
 
+These commands run the four experiments. Each command will periodically save the model as a `.pt` file; it will also save reconstructions and samples as images in the current directory. MNIST should run in an hour or two on a GPU. The other experiments may take up to a few days.
+
+If you are running out of GPU memory, decrease the batch size by a factor of K and multiply the step interval and step limit by K. This will run an equivalent experiment with more gradient accumulation.
+
 ```
 python -u train_mnist.py --batch 32 --step-limit 50000 --save-interval 500
 python -u train_svhn.py --batch 32 --step-interval 16 --step-limit 70000 --save-interval 500
-python -u train_cifar.py --batch 32 --step-interval 16 --step-limit 34811 --save-interval 500 --grad-checkpoint
-python -u train_celeba.py --batch 32 --step-interval 16 --step-limit 36194 --save-interval 500 --grad-checkpoint
+python -u train_cifar.py --batch 32 --step-interval 16 --step-limit 34811 --save-interval 500 --grad-checkpoint --lr-final 0.001
+python -u train_celeba.py --batch 32 --step-interval 16 --step-limit 36194 --save-interval 500 --grad-checkpoint --lr-final 0.001
 ```
 
 # Results
