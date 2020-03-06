@@ -74,6 +74,45 @@ class IntRefinerState(RefinerState):
         return lambda tensors: IntRefinerState(int(tensors[0].item()))
 
 
+class TensorRefinerState(RefinerState):
+    """
+    A tuple of Tensors.
+    """
+
+    def __init__(self, tensors):
+        self.tensors = tensors
+
+    def to_tensors(self):
+        return tuple(self.tensors)
+
+    def from_tensors(self):
+        return lambda x: TensorRefinerState(x)
+
+
+class TupleRefinerState(RefinerState):
+    """
+    An aggregate refiner state.
+    """
+
+    def __init__(self, states):
+        self.states = tuple(states)
+
+    def to_tensors(self):
+        return [t for s in self.states for t in s.to_tensors()]
+
+    def from_tensors(self):
+        counts = [len(s.to_tensors()) for s in self.states]
+        sub_funcs = [s.from_tensors() for s in self.states]
+
+        def f(tensors):
+            assert len(tensors) == sum(counts)
+            states = []
+            for count, func in zip(counts, sub_funcs):
+                states.append(func(tensors[:count]))
+                tensors = tensors[count:]
+            return TupleRefinerState(tuple(states))
+
+
 class ResidualRefiner(Refiner):
     """
     Base class for refiner modules that compute additive
