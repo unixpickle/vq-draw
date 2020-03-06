@@ -5,6 +5,8 @@ import torch
 import torch.nn as nn
 import torch.utils.checkpoint
 
+from .refiner_base import ResidualRefiner
+
 
 class Encoder(nn.Module):
     """
@@ -82,38 +84,46 @@ class Encoder(nn.Module):
               losses: an [N x num_stages x options] tensor.
         """
         current_outputs = torch.zeros((inputs.shape[0], *self.shape), device=inputs.device)
+        state = self.refiner.init_state(inputs.shape[0])
+        make_state = state.from_tensors()
+
         interval = int(math.sqrt(self.num_stages))
         if not checkpoint or interval < 1:
-            return self._forward_range(range(self.num_stages), inputs, current_outputs, epsilon)
+            encs, outs, state, losses = self._forward_range(range(self.num_stages),
+                                                            inputs,
+                                                            current_outputs,
+                                                            state,
+                                                            epsilon)
+            return encs, outs, losses
+
         encodings = []
         all_losses = []
         for i in range(0, self.num_stages, interval):
             r = range(i, min(i+interval, self.num_stages))
 
-            def f(inputs, current_outputs, dummy, stages=r):
-                encs, outs, losses = self._forward_range(stages, inputs, current_outputs, epsilon)
+            def f(inputs, current_outputs, *state_tensors, stages=r):
+                encs, outs, state, losses = self._forward_range(
+                    stages, inputs, current_outputs, make_state(state_tensors), epsilon)
 
                 # Cannot have a return value that does not require
                 # grad, so we use this hack instead.
                 encodings.append(encs)
 
-                return outs, losses
+                return (outs, losses, *state.to_tensors())
 
-            # Workaround from:
-            # https://discuss.pytorch.org/t/checkpoint-with-no-grad-requiring-inputs-problem/19117/16.
-            dummy = torch.zeros(1).requires_grad_()
-            current_outputs, losses = torch.utils.checkpoint.checkpoint(f, inputs, current_outputs,
-                                                                        dummy)
+            current_outputs, losses, *state_tensors = torch.utils.checkpoint.checkpoint(
+                f, inputs, current_outputs, *state.to_tensors())
+            state = make_state(state_tensors)
             all_losses.append(losses)
         return (torch.cat(encodings, dim=-1),
                 current_outputs,
                 torch.cat(all_losses, dim=1))
 
-    def _forward_range(self, stages, inputs, current_outputs, epsilon):
+    def _forward_range(self, stages, inputs, current_outputs, state, epsilon):
         encodings = []
         all_losses = []
         for i in stages:
-            new_outputs = self.apply_stage(i, current_outputs)
+            new_outputs, state = self.apply_stage(current_outputs, state, first=(i == 0))
             losses = self.loss_fn.loss_grid(new_outputs, inputs[:, None])
             all_losses.append(losses)
             indices = torch.argmin(losses, dim=1)
@@ -126,21 +136,23 @@ class Encoder(nn.Module):
         if len(encodings) == 0:
             return (torch.zeros(inputs.shape[0], 0, dtype=torch.long, device=inputs.device),
                     current_outputs,
+                    state,
                     torch.zeros(inputs.shape[0], 0, self.options, device=inputs.device))
         return (torch.stack(encodings, dim=-1),
                 current_outputs,
+                state,
                 torch.stack(all_losses, dim=1))
 
-    def apply_stage(self, idx, x):
+    def apply_stage(self, x, state, first=False):
         """
-        Apply a stage (number idx) to a batch of inputs x
+        Apply a stage to a batch of inputs x
         and get a batch of refinement proposals.
         """
         x = x.detach() * self._grad_decay + x * (1 - self._grad_decay)
-        res = self.refiner(x, idx)
-        if idx == 0:
+        res, state = self.refiner(x, state)
+        if first:
             res = res + self.bias
-        return res
+        return res, state
 
     def reconstruct(self, inputs, **kwargs):
         """
@@ -178,8 +190,9 @@ class Encoder(nn.Module):
         if num_stages is None:
             num_stages = self.num_stages
         current_outputs = torch.zeros((codes.shape[0],) + self.shape, device=codes.device)
+        state = self.refiner.init_state(codes.shape[0])
         for i in range(num_stages):
-            new_outputs = self.apply_stage(i, current_outputs)
+            new_outputs, state = self.apply_stage(current_outputs, state, first=(i == 0))
             current_outputs = new_outputs[range(new_outputs.shape[0]), codes[:, i]]
         return current_outputs
 
@@ -193,22 +206,6 @@ class SegmentRefiner(nn.Module):
     def forward(self, x, stage):
         seg = self.segments[stage // self.seg_len]
         return seg(x, stage % self.seg_len)
-
-
-class ResidualRefiner(nn.Module):
-    """
-    Base class for refiner modules that compute additive
-    residuals for the inputs.
-    """
-    @abstractmethod
-    def residuals(self, x, stage):
-        """
-        Generate a set of potential deltas to the input.
-        """
-        pass
-
-    def forward(self, x, stage):
-        return x[:, None] + self.residuals(x, stage)
 
 
 class CIFARRefiner(ResidualRefiner):
