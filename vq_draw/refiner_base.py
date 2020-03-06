@@ -94,8 +94,8 @@ class TupleRefinerState(RefinerState):
     An aggregate refiner state.
     """
 
-    def __init__(self, states):
-        self.states = tuple(states)
+    def __init__(self, *states):
+        self.states = states
 
     def to_tensors(self):
         return [t for s in self.states for t in s.to_tensors()]
@@ -110,7 +110,7 @@ class TupleRefinerState(RefinerState):
             for count, func in zip(counts, sub_funcs):
                 states.append(func(tensors[:count]))
                 tensors = tensors[count:]
-            return TupleRefinerState(tuple(states))
+            return TupleRefinerState(*states)
 
 
 class ResidualRefiner(Refiner):

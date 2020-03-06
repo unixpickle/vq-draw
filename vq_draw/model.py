@@ -5,7 +5,8 @@ import torch
 import torch.nn as nn
 import torch.utils.checkpoint
 
-from .refiner_base import ResidualRefiner
+from .refiner_base import (Refiner, ResidualRefiner, IntRefinerState, TensorRefinerState,
+                           TupleRefinerState)
 
 
 class Encoder(nn.Module):
@@ -261,6 +262,106 @@ class CIFARRefiner(ResidualRefiner):
     def residuals(self, x, stage):
         x = self.layers(x, stage) * self.output_scale
         return x.view(x.shape[0], self.num_options, 3, *x.shape[2:])
+
+
+class CIFARRecurrentRefiner(Refiner):
+    """
+    An RNN refiner module appropriate for the CIFAR
+    dataset.
+    """
+
+    def __init__(self, num_options, max_stages):
+        super().__init__()
+        self.num_options = num_options
+        self.output_scale = nn.Parameter(torch.tensor(0.01))
+
+        self.rnn_input_block = nn.Sequential(
+            nn.Conv2d(3, 64, 5, stride=2, padding=2),
+            nn.ReLU(),
+            nn.GroupNorm(8, 64),
+            nn.Conv2d(64, 128, 5, stride=2, padding=2),
+            nn.ReLU(),
+            nn.GroupNorm(8, 128),
+            nn.Conv2d(128, 128, 3, stride=2, padding=2),
+            nn.ReLU(),
+            nn.GroupNorm(8, 128),
+            nn.AvgPool2d(4),
+        )
+        self.rnn_block = nn.GRU(128, 128, num_layers=2)
+        self.rnn_state = nn.Parameter(torch.randn(2, 1, 128))
+
+        def res_block():
+            return ResidualBlock(
+                nn.ReLU(),
+                nn.GroupNorm(8, 256),
+                nn.Conv2d(256, 256, 3, padding=1),
+                CondChannelMask(max_stages, 256),
+                nn.ReLU(),
+                nn.GroupNorm(8, 256),
+                nn.Conv2d(256, 1024, 1),
+                CondChannelMask(max_stages, 1024),
+                nn.ReLU(),
+                nn.GroupNorm(32, 1024),
+                nn.Conv2d(1024, 256, 1),
+                CondChannelMask(max_stages, 256),
+            )
+
+        self.input_block = nn.Sequential(
+            nn.Conv2d(3, 64, 5, stride=2, padding=2),
+            nn.ReLU(),
+            nn.GroupNorm(8, 64),
+            nn.Conv2d(64, 128, 5, stride=2, padding=2),
+            nn.ReLU(),
+            nn.GroupNorm(8, 128),
+        )
+
+        self.layers = Sequential(
+            nn.Conv2d(128, 256, 3, padding=1),
+            CondChannelMask(max_stages, 256),
+            res_block(),
+            res_block(),
+            res_block(),
+            res_block(),
+            res_block(),
+            res_block(),
+
+            # Increase spacial resolution back to original.
+            nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1),
+            CondChannelMask(max_stages, 128),
+            nn.ReLU(),
+            nn.GroupNorm(8, 128),
+            nn.ConvTranspose2d(128, 128, 4, stride=2, padding=1),
+            CondChannelMask(max_stages, 128),
+            nn.ReLU(),
+            nn.GroupNorm(8, 128),
+
+            # Generate option outputs.
+            nn.Conv2d(128, 128, 3, padding=1),
+            CondChannelMask(max_stages, 128),
+            nn.ReLU(),
+            nn.Conv2d(128, 3 * self.num_options, 5, padding=2),
+        )
+
+    def init_state(self, batch):
+        states = self.rnn_state.repeat(1, batch, 1)
+        return TupleRefinerState(IntRefinerState(0), TensorRefinerState([states]))
+
+    def forward(self, x, state):
+        rnn_inputs = self.rnn_input_block(x).view(x.shape[0], -1)
+        stage = state.states[0].data
+        rnn_state = state.states[1].tensors[0]
+
+        rnn_outputs, rnn_state = self.rnn_block(rnn_inputs[None], rnn_state)
+
+        out = self.input_block(x)
+        # Condition the processing on the RNN outputs.
+        out += rnn_outputs[0, :, :, None, None]
+        out = self.layers(out, stage) * self.output_scale
+        out = out.view(x.shape[0], self.num_options, 3, *out.shape[2:])
+
+        new_state = TupleRefinerState(IntRefinerState(stage + 1), TensorRefinerState([rnn_state]))
+
+        return x[:, None] + out, new_state
 
 
 class CelebARefiner(ResidualRefiner):
