@@ -272,8 +272,6 @@ class CIFARRefiner(ResidualRefiner):
     def __init__(self, num_options, max_stages, state_dim=4):
         super().__init__()
         self.num_options = num_options
-        self.output_scale = nn.Parameter(torch.tensor(1.0))
-        self.state_scale = nn.Parameter(torch.tensor(0.01))
         self.initial_state = nn.Parameter(torch.zeros(state_dim, 32, 32))
 
         def res_block():
@@ -334,18 +332,29 @@ class CIFARRefiner(ResidualRefiner):
             nn.Conv2d(128, 128, 3, padding=1),
             CondChannelMask(max_stages, 128),
             nn.ReLU(),
-            nn.Conv2d(128, (3 + state_dim) * self.num_options, 5, padding=2),
         )
+
+        self.output_scale = nn.Parameter(torch.tensor(0.01))
+        self.output_values = nn.Conv2d(128, 3 * self.num_options, 5, padding=2)
+        self.output_states = nn.Conv2d(128, state_dim, 5, padding=2)
+        self.output_state_gates = nn.Conv2d(128, state_dim, 5, padding=2)
+        self.output_state_gates.bias.detach().fill_(-3)
 
     def init_state(self, batch):
         return self.initial_state[None].repeat(batch, 1, 1, 1)
 
     def residuals(self, x, state, stage):
-        x = self.image_input(x, stage) * self.state_input(state, stage)
+        x = self.image_input(x, stage) + self.state_input(state, stage)
         x = self.layers(x, stage)
+        new_state = self.output_states(x)
+        new_state = new_state.view(new_state.shape[0], 1, -1, *new_state.shape[2:])
+        state_gate = torch.sigmoid(self.output_state_gates(x))
+        state_gate = state_gate.view(new_state.shape)
+        new_state = state[:, None] * (1 - state_gate) + new_state * state_gate
+        new_state = new_state.repeat(1,self.num_options,1,1,1)
+        x = self.output_values(x) * self.output_scale
         x = x.view(x.shape[0], self.num_options, -1, *x.shape[2:])
-        return (x[:, :, :3].contiguous() * self.output_scale,
-                x[:, :, 3:].contiguous() * self.state_scale)
+        return x, new_state
 
 
 class CelebARefiner(ResidualRefiner):
