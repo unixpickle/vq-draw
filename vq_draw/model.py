@@ -5,6 +5,8 @@ import torch
 import torch.nn as nn
 import torch.utils.checkpoint
 
+FRAME_STACK = 5
+
 
 class Encoder(nn.Module):
     """
@@ -82,38 +84,44 @@ class Encoder(nn.Module):
               losses: an [N x num_stages x options] tensor.
         """
         current_outputs = torch.zeros((inputs.shape[0], *self.shape), device=inputs.device)
+        current_outputs = [current_outputs.requires_grad_()] * FRAME_STACK
         interval = int(math.sqrt(self.num_stages))
         if not checkpoint or interval < 1:
-            return self._forward_range(range(self.num_stages), inputs, current_outputs, epsilon)
+            res = self._forward_range(range(self.num_stages), inputs, current_outputs, epsilon)
+            res = list(res)
+            res[1] = res[1][-1]
+            return tuple(res)
         encodings = []
         all_losses = []
         for i in range(0, self.num_stages, interval):
             r = range(i, min(i+interval, self.num_stages))
 
-            def f(inputs, current_outputs, dummy, stages=r):
+            def f(inputs, dummy, *current_outputs, stages=r):
+                current_outputs = list(current_outputs)
                 encs, outs, losses = self._forward_range(stages, inputs, current_outputs, epsilon)
 
                 # Cannot have a return value that does not require
                 # grad, so we use this hack instead.
                 encodings.append(encs)
 
-                return outs, losses
+                return tuple(outs + [losses])
 
             # Workaround from:
             # https://discuss.pytorch.org/t/checkpoint-with-no-grad-requiring-inputs-problem/19117/16.
             dummy = torch.zeros(1).requires_grad_()
-            current_outputs, losses = torch.utils.checkpoint.checkpoint(f, inputs, current_outputs,
-                                                                        dummy)
+            terms = torch.utils.checkpoint.checkpoint(f, inputs, dummy, *current_outputs)
+            current_outputs = list(terms[:-1])
+            losses = terms[-1]
             all_losses.append(losses)
         return (torch.cat(encodings, dim=-1),
-                current_outputs,
+                current_outputs[-1],
                 torch.cat(all_losses, dim=1))
 
     def _forward_range(self, stages, inputs, current_outputs, epsilon):
         encodings = []
         all_losses = []
         for i in stages:
-            new_outputs = self.apply_stage(i, current_outputs)
+            new_outputs = self.apply_stage(i, torch.cat(current_outputs, dim=1))
             losses = self.loss_fn.loss_grid(new_outputs, inputs[:, None])
             all_losses.append(losses)
             indices = torch.argmin(losses, dim=1)
@@ -122,7 +130,8 @@ class Encoder(nn.Module):
                 takes = (torch.rand(indices.shape, device=indices.device) < epsilon).long()
                 indices = takes * rands + (1 - takes) * indices
             encodings.append(indices)
-            current_outputs = new_outputs[range(new_outputs.shape[0]), indices]
+            current_outputs.append(new_outputs[range(new_outputs.shape[0]), indices])
+            current_outputs = current_outputs[1:]
         if len(encodings) == 0:
             return (torch.zeros(inputs.shape[0], 0, dtype=torch.long, device=inputs.device),
                     current_outputs,
@@ -177,11 +186,13 @@ class Encoder(nn.Module):
         """
         if num_stages is None:
             num_stages = self.num_stages
-        current_outputs = torch.zeros((codes.shape[0],) + self.shape, device=codes.device)
+        current_outputs = [torch.zeros((codes.shape[0],) + self.shape,
+                                       device=codes.device)] * FRAME_STACK
         for i in range(num_stages):
-            new_outputs = self.apply_stage(i, current_outputs)
-            current_outputs = new_outputs[range(new_outputs.shape[0]), codes[:, i]]
-        return current_outputs
+            new_outputs = self.apply_stage(i, torch.cat(current_outputs, dim=1))
+            current_outputs.append(new_outputs[range(new_outputs.shape[0]), codes[:, i]])
+            current_outputs = current_outputs[1:]
+        return current_outputs[-1]
 
 
 class SegmentRefiner(nn.Module):
@@ -208,7 +219,7 @@ class ResidualRefiner(nn.Module):
         pass
 
     def forward(self, x, stage):
-        return x[:, None] + self.residuals(x, stage)
+        return x[:, None, -3:] + self.residuals(x, stage)
 
 
 class CIFARRefiner(ResidualRefiner):
@@ -239,7 +250,7 @@ class CIFARRefiner(ResidualRefiner):
 
         self.layers = Sequential(
             # Reduce spatial resolution.
-            nn.Conv2d(3, 64, 5, stride=2, padding=2),
+            nn.Conv2d(3 * FRAME_STACK, 64, 5, stride=2, padding=2),
             nn.ReLU(),
             nn.GroupNorm(8, 64),
             nn.Conv2d(64, 128, 5, stride=2, padding=2),
