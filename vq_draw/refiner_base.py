@@ -135,3 +135,30 @@ class ResidualRefiner(Refiner):
     def forward(self, x, state):
         return (x[:, None] + self.residuals(x, state.data),
                 IntRefinerState(state.data + 1))
+
+
+class SegmentRefiner(Refiner):
+    """
+    A combination of child refiners.
+
+    By default, this assumes that the state is simply the
+    stage index.
+    """
+
+    def __init__(self, seg_len, *segments):
+        super().__init__()
+        self.seg_len = seg_len
+        self.segments = nn.ModuleList(segments)
+
+    def init_state(self, batch):
+        return self.segments[0].init_state(batch)
+
+    def forward(self, x, state):
+        seg = self.segments[self.state_to_stage(state)]
+        return seg(x, self.mod_state(state))
+
+    def state_to_stage(self, state):
+        return state.data
+
+    def mod_state(self, state):
+        return IntRefinerState(state.data % self.seg_len)

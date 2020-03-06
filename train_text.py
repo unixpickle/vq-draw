@@ -5,7 +5,8 @@ from torchtext.data import Field, BPTTIterator
 from torchtext.datasets import WikiText2
 
 from vq_draw.losses import SoftmaxLoss
-from vq_draw.model import Encoder, TextRefiner, SegmentRefiner
+from vq_draw.model import Encoder, TextRefiner
+from vq_draw.refiner_base import SegmentRefiner
 from vq_draw.train import TextTrainer
 
 

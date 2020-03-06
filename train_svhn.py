@@ -4,7 +4,8 @@ import torch
 from torchvision import datasets, transforms
 
 from vq_draw.losses import MSELoss
-from vq_draw.model import Encoder, SVHNRefiner, SegmentRefiner
+from vq_draw.model import Encoder, SVHNRefiner
+from vq_draw.refiner_base import SegmentRefiner
 from vq_draw.train import ImageTrainer
 
 IMG_SIZE = 32
