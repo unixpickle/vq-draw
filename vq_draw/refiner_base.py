@@ -112,6 +112,8 @@ class TupleRefinerState(RefinerState):
                 tensors = tensors[count:]
             return TupleRefinerState(*states)
 
+        return f
+
 
 class ResidualRefiner(Refiner):
     """
