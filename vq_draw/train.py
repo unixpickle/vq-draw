@@ -200,27 +200,19 @@ class Trainer(ABC):
         Utility to infinitely cycle through batches from a
         data loader.
         """
-        while True:
-            for batch, _ in loader:
-                yield batch.to(self.device)
+        return cycle_batches_simple(loader, self.device)
 
     def gather_samples(self, loader, num_samples):
         """
         Gather a batch of samples from a data loader.
         """
-        results = []
-        count = 0
-        for inputs in self.cycle_batches(loader):
-            results.append(inputs)
-            count += inputs.shape[0]
-            if count >= num_samples:
-                break
-        return torch.cat(results, dim=0)[:num_samples]
+        return gather_samples_simple(self.cycle_batches(loader), num_samples)
 
 
-class ImageTrainer(Trainer):
+class ImageMixin:
     """
-    A Trainer for image datasets.
+    A mixin to add image-specific functions to a Trainer
+    or a Distiller.
     """
 
     def arg_parser(self):
@@ -303,9 +295,10 @@ class ImageTrainer(Trainer):
         pass
 
 
-class TextTrainer(Trainer):
+class TextMixin:
     """
-    A Trainer for text datasets.
+    A mixin to add text-specific functionality to a
+    Trainer or Distiller.
     """
 
     def save_reconstructions(self):
@@ -370,3 +363,34 @@ class TextTrainer(Trainer):
                 random.shuffle(batches)
                 for x in batches:
                     yield x.text.to(self.device).t()
+
+
+class ImageTrainer(ImageMixin, Trainer):
+    """
+    A Trainer for image datasets.
+    """
+    pass
+
+
+class TextTrainer(TextMixin, Trainer):
+    """
+    A Trainer for text datasets.
+    """
+    pass
+
+
+def cycle_batches_simple(loader, device):
+    while True:
+        for batch, _ in loader:
+            yield batch.to(device)
+
+
+def gather_samples_simple(batches, num_samples):
+    results = []
+    count = 0
+    for inputs in batches:
+        results.append(inputs)
+        count += inputs.shape[0]
+        if count >= num_samples:
+            break
+    return torch.cat(results, dim=0)[:num_samples]
