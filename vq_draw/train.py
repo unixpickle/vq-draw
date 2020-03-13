@@ -270,7 +270,7 @@ class Distiller(ABC):
             sample_latents = torch.randint(high=self.vqdraw.options,
                                            size=(train_batch.shape[0], self.vqdraw.num_stages))
             with torch.no_grad():
-                sample_batch = self.vqdraw.decode(sample_latents)
+                sample_batch = self.vqdraw.decode(sample_latents.to(self.device))
                 train_latents = self.vqdraw(train_batch)[0]
                 test_latents = self.vqdraw(test_batch)[0]
 
