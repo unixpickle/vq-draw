@@ -6,6 +6,7 @@ import random
 from PIL import Image
 import numpy as np
 import torch
+import torch.nn.functional as F
 import torch.optim as optim
 
 
@@ -209,6 +210,223 @@ class Trainer(ABC):
         return gather_samples_simple(self.cycle_batches(loader), num_samples)
 
 
+class Distiller(ABC):
+    """
+    A Distiller can be used to train a DistillAE model to
+    clone the behavior of an Encoder from a CLI
+    application.
+
+    Simply override all of the abstract methods and
+    properties to specify your model and dataset.
+    """
+
+    def __init__(self):
+        self.args = self.arg_parser().parse_args()
+        self.use_cuda = torch.cuda.is_available()
+        self.device = torch.device('cuda') if self.use_cuda else torch.device('cpu')
+
+        self.train_loader, self.test_loader = self.create_datasets()
+        self.vqdraw = self.load_vqdraw()
+        self.model = self.create_or_load_model()
+        self.optimizer = optim.Adam(self.model.parameters(),
+                                    lr=self.args.lr, betas=(0.9, 0.99), eps=1e-5)
+
+    def arg_parser(self):
+        """
+        Create an argument parser for CLI arguments.
+        """
+        parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--active-stages', default=0, type=int)
+        parser.add_argument('--stages', default=self.default_stages, type=int)
+        parser.add_argument('--options', default=64, type=int)
+        parser.add_argument('--vqdraw-checkpoint', default=self.default_vqdraw_checkpoint,
+                            type=str)
+        parser.add_argument('--checkpoint', default=self.default_checkpoint, type=str)
+
+        if self.default_segment is not None:
+            parser.add_argument('--segment', default=self.default_segment, type=int)
+
+        parser.add_argument('--batch', default=128, type=int)
+        parser.add_argument('--lr', default=0.001, type=float)
+        parser.add_argument('--save-interval', default=10, type=int)
+
+        return parser
+
+    def main(self):
+        """
+        Run the training loop.
+
+        This may run forever, depending on the step limit
+        CLI argument.
+        """
+        if self.args.active_stages:
+            self.vqdraw.num_stages = self.args.active_stages
+        if self.use_cuda:
+            import torch.backends.cudnn as cudnn  # noqa: F401
+            cudnn.benchmark = True
+        loaders = zip(self.cycle_batches(self.train_loader),
+                      self.cycle_batches(self.test_loader))
+        for i, (train_batch, test_batch) in enumerate(loaders):
+            sample_latents = torch.randint(high=self.vqdraw.options,
+                                           size=(train_batch.shape[0], self.vqdraw.num_stages))
+            with torch.no_grad():
+                sample_batch = self.vqdraw.decode(sample_latents)
+                train_latents = self.vqdraw(train_batch)[0]
+                test_latents = self.vqdraw(test_batch)[0]
+
+            terms = {}
+            terms['train_enc'], terms['train_dec'] = self.distill_losses(train_latents, train_batch)
+            terms['sample_enc'], terms['sample_dec'] = self.distill_losses(
+                sample_latents, sample_batch)
+            loss = sum(terms.values())
+
+            with torch.no_grad():
+                terms['test_enc'], terms['test_dec'] = self.distill_losses(test_latents, test_batch)
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+            losses_str = ' '.join('%s=%f' % item for item in terms.items())
+            print('step ' + str(i) + ': ' + losses_str)
+
+            if not i % self.args.save_interval:
+                self.save()
+
+    def distill_losses(self, latents, targets):
+        """
+        Compute a tuple of (enc, dec) losses for the
+        distilled model.
+        """
+        latent_pred = self.model.encode(targets).permute(0, 2, 1)
+        target_pred = self.model.decode(latents)
+        latent_loss = F.nll_loss(F.log_softmax(latent_pred, dim=1), latents)
+        target_loss = self.vqdraw.loss_fn(target_pred, targets)
+        return (latent_loss, target_loss)
+
+    def load_vqdraw(self):
+        """
+        Create the VQ-DRAW model and load it from a file.
+        """
+        model = self.create_vqdraw_model()
+        print('=> loading VQ-DRAW model from checkpoint...')
+        model.load_state_dict(torch.load(self.args.vqdraw_checkpoint, map_location='cpu'))
+        model.num_stages = self.args.stages
+        return model.to(self.device)
+
+    def create_or_load_model(self):
+        """
+        Create the model and load it from a file if there
+        is a saved checkpoint.
+        """
+        model = self.create_model()
+        if os.path.exists(self.args.checkpoint):
+            print('=> loading distilled model from checkpoint...')
+            model.load_state_dict(torch.load(self.args.checkpoint, map_location='cpu'))
+        else:
+            print('=> created new distilled model...')
+        return model.to(self.device)
+
+    def save(self):
+        """
+        Save all the files that this model can produce.
+        """
+        self.save_checkpoint()
+        self.save_reconstructions()
+        self.save_samples()
+
+    def save_checkpoint(self):
+        """
+        Save a checkpoint of the current model.
+        """
+        torch.save(self.model.state_dict(), self.args.checkpoint)
+
+    @abstractmethod
+    def save_reconstructions(self):
+        """
+        Save reconstructions to a file.
+        """
+        pass
+
+    @abstractmethod
+    def save_samples(self):
+        """
+        Save random samples to a file.
+        """
+        pass
+
+    @abstractproperty
+    def default_vqdraw_checkpoint(self):
+        """
+        Get the default checkpoint name for the original
+        model for the CLI.
+        """
+        pass
+
+    @abstractproperty
+    def default_checkpoint(self):
+        """
+        Get the default checkpoint name for the CLI.
+        """
+        pass
+
+    @abstractproperty
+    def default_stages(self):
+        """
+        Get the default number of stages for the CLI.
+        """
+        pass
+
+    @abstractproperty
+    def default_segment(self):
+        """
+        Get the default segment length, or None to
+        disable segments.
+        """
+        pass
+
+    @abstractproperty
+    def shape(self):
+        """
+        Get the shape of the encoded tensors.
+        """
+        pass
+
+    @abstractmethod
+    def create_datasets(self):
+        """
+        Create the (train, test) data loaders.
+        """
+        pass
+
+    @abstractmethod
+    def create_vqdraw_model(self):
+        """
+        Create a new Encoder model.
+        """
+        pass
+
+    @abstractmethod
+    def create_model(self):
+        """
+        Create a new DistillAE model.
+        """
+        pass
+
+    def cycle_batches(self, loader):
+        """
+        Utility to infinitely cycle through batches from a
+        data loader.
+        """
+        return cycle_batches_simple(loader, self.device)
+
+    def gather_samples(self, loader, num_samples):
+        """
+        Gather a batch of samples from a data loader.
+        """
+        return gather_samples_simple(self.cycle_batches(loader), num_samples)
+
+
 class ImageMixin:
     """
     A mixin to add image-specific functions to a Trainer
@@ -375,6 +593,13 @@ class ImageTrainer(ImageMixin, Trainer):
 class TextTrainer(TextMixin, Trainer):
     """
     A Trainer for text datasets.
+    """
+    pass
+
+
+class ImageDistiller(ImageMixin, Distiller):
+    """
+    A Distiller for image datasets.
     """
     pass
 
