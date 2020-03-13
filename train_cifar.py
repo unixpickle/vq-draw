@@ -3,9 +3,7 @@ import math
 import torch
 from torchvision import datasets, transforms
 
-from vq_draw.losses import MSELoss
-from vq_draw.model import Encoder, CIFARRefiner, SegmentRefiner
-from vq_draw.train import ImageTrainer
+from vq_draw import MSELoss, Encoder, CIFARRefiner, SegmentRefiner, ImageTrainer
 
 IMG_SIZE = 32
 

@@ -1,9 +1,7 @@
 import torch
 from torchvision import datasets, transforms
 
-from vq_draw.losses import MSELoss, GaussianLoss
-from vq_draw.model import Encoder, MNISTRefiner
-from vq_draw.train import ImageTrainer
+from vq_draw import MSELoss, GaussianLoss, Encoder, MNISTRefiner, ImageTrainer
 
 IMG_SIZE = 28
 
