@@ -268,9 +268,10 @@ class Distiller(ABC):
                       self.cycle_batches(self.test_loader))
         for i, (train_batch, test_batch) in enumerate(loaders):
             sample_latents = torch.randint(high=self.vqdraw.options,
-                                           size=(train_batch.shape[0], self.vqdraw.num_stages))
+                                           size=(train_batch.shape[0], self.vqdraw.num_stages),
+                                           device=self.device)
             with torch.no_grad():
-                sample_batch = self.vqdraw.decode(sample_latents.to(self.device))
+                sample_batch = self.vqdraw.decode(sample_latents)
                 train_latents = self.vqdraw(train_batch)[0]
                 test_latents = self.vqdraw(test_batch)[0]
 
