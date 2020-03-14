@@ -286,6 +286,8 @@ class Distiller(ABC):
 
             with torch.no_grad():
                 terms['test_enc'], terms['test_dec'] = self.distill_losses(test_latents, test_recon)
+                terms['train_e2e'] = self.e2e_loss(test_batch)
+                terms['test_e2e'] = self.e2e_loss(train_batch)
 
             self.optimizer.zero_grad()
             loss.backward()
@@ -307,6 +309,15 @@ class Distiller(ABC):
         latent_loss = F.nll_loss(F.log_softmax(latent_pred, dim=1), latents)
         target_loss = self.vqdraw.loss_fn(target_pred, targets)
         return (latent_loss, target_loss)
+
+    def e2e_loss(self, inputs):
+        """
+        Compute the end-to-end reconstruction loss using
+        the argmax of the encoder output.
+        """
+        latents = torch.argmax(self.model.encode(inputs), dim=-1)
+        decoded = self.model.decode(latents)
+        return self.vqdraw.loss_fn(decoded, inputs)
 
     def load_vqdraw(self):
         """
