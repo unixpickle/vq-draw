@@ -249,6 +249,8 @@ class Distiller(ABC):
         parser.add_argument('--batch', default=128, type=int)
         parser.add_argument('--lr', default=0.001, type=float)
         parser.add_argument('--save-interval', default=10, type=int)
+        parser.add_argument('--train-weight', default=1, type=float)
+        parser.add_argument('--sample-weight', default=1, type=float)
 
         return parser
 
@@ -279,7 +281,8 @@ class Distiller(ABC):
             terms['train_enc'], terms['train_dec'] = self.distill_losses(train_latents, train_batch)
             terms['sample_enc'], terms['sample_dec'] = self.distill_losses(
                 sample_latents, sample_batch)
-            loss = sum(terms.values())
+            loss = (self.args.train_weight * sum(v for k, v in terms.items() if 'train' in k) +
+                    self.args.sample_weight * sum(v for k, v in terms.items() if 'sample' in k))
 
             with torch.no_grad():
                 terms['test_enc'], terms['test_dec'] = self.distill_losses(test_latents, test_batch)
