@@ -278,22 +278,23 @@ class Distiller(ABC):
                 test_latents, test_recon, _ = self.vqdraw(test_batch)
 
             terms = {}
-            terms['train_enc'], terms['train_dec'] = self.distill_losses(train_latents, train_recon)
-            terms['sample_enc'], terms['sample_dec'] = self.distill_losses(
+            terms['enc_train'], terms['dec_train'] = self.distill_losses(train_latents, train_recon)
+            terms['enc_sample'], terms['dec_sample'] = self.distill_losses(
                 sample_latents, sample_recon)
             loss = (self.args.train_weight * sum(v for k, v in terms.items() if 'train' in k) +
                     self.args.sample_weight * sum(v for k, v in terms.items() if 'sample' in k))
 
             with torch.no_grad():
-                terms['test_enc'], terms['test_dec'] = self.distill_losses(test_latents, test_recon)
-                terms['train_e2e'] = self.e2e_loss(test_batch)
-                terms['test_e2e'] = self.e2e_loss(train_batch)
+                terms['enc_test'], terms['dec_test'] = self.distill_losses(test_latents, test_recon)
+                terms['e2e_train'] = self.e2e_loss(test_batch)
+                terms['e2e_test'] = self.e2e_loss(train_batch)
+                terms['e2e_sample'] = self.e2e_loss(sample_recon)
 
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
 
-            losses_str = ' '.join('%s=%f' % item for item in terms.items())
+            losses_str = ' '.join(sorted('%s=%f' % item for item in terms.items()))
             print('step ' + str(i) + ': ' + losses_str)
 
             if not i % self.args.save_interval:
