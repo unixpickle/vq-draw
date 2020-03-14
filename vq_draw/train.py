@@ -273,19 +273,19 @@ class Distiller(ABC):
                                            size=(train_batch.shape[0], self.vqdraw.num_stages),
                                            device=self.device)
             with torch.no_grad():
-                sample_batch = self.vqdraw.decode(sample_latents)
-                train_latents = self.vqdraw(train_batch)[0]
-                test_latents = self.vqdraw(test_batch)[0]
+                sample_recon = self.vqdraw.decode(sample_latents)
+                train_latents, train_recon, _ = self.vqdraw(train_batch)
+                test_latents, test_recon, _ = self.vqdraw(test_batch)
 
             terms = {}
-            terms['train_enc'], terms['train_dec'] = self.distill_losses(train_latents, train_batch)
+            terms['train_enc'], terms['train_dec'] = self.distill_losses(train_latents, train_recon)
             terms['sample_enc'], terms['sample_dec'] = self.distill_losses(
-                sample_latents, sample_batch)
+                sample_latents, sample_recon)
             loss = (self.args.train_weight * sum(v for k, v in terms.items() if 'train' in k) +
                     self.args.sample_weight * sum(v for k, v in terms.items() if 'sample' in k))
 
             with torch.no_grad():
-                terms['test_enc'], terms['test_dec'] = self.distill_losses(test_latents, test_batch)
+                terms['test_enc'], terms['test_dec'] = self.distill_losses(test_latents, test_recon)
 
             self.optimizer.zero_grad()
             loss.backward()
