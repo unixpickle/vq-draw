@@ -6,7 +6,6 @@ import random
 from PIL import Image
 import numpy as np
 import torch
-import torch.nn.functional as F
 import torch.optim as optim
 
 
@@ -305,9 +304,8 @@ class Distiller(ABC):
         Compute a tuple of (enc, dec) losses for the
         distilled model.
         """
-        latent_pred = self.model.encode(targets).permute(0, 2, 1)
+        latent_loss = self.model.encode_nll(targets, latents)
         target_pred = self.model.decode(latents)
-        latent_loss = F.nll_loss(F.log_softmax(latent_pred, dim=1), latents)
         target_loss = self.vqdraw.loss_fn(target_pred, targets)
         return (latent_loss, target_loss)
 
@@ -316,7 +314,7 @@ class Distiller(ABC):
         Compute the end-to-end reconstruction loss using
         the argmax of the encoder output.
         """
-        latents = torch.argmax(self.model.encode(inputs), dim=-1)
+        latents = self.model.encode(inputs)
         decoded = self.model.decode(latents)
         return self.vqdraw.loss_fn(decoded, inputs)
 
