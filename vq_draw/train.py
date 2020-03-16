@@ -285,8 +285,8 @@ class Distiller(ABC):
 
             with torch.no_grad():
                 terms['enc_test'], terms['dec_test'] = self.distill_losses(test_latents, test_recon)
-                terms['e2e_train'] = self.e2e_loss(test_batch)
-                terms['e2e_test'] = self.e2e_loss(train_batch)
+                terms['e2e_test'] = self.e2e_loss(test_batch)
+                terms['e2e_train'] = self.e2e_loss(train_batch)
                 terms['e2e_sample'] = self.e2e_loss(sample_recon)
 
             self.optimizer.zero_grad()
