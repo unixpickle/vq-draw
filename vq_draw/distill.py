@@ -106,7 +106,7 @@ class MNISTDistillAE(DistillAE):
             nn.Linear(7*7*64, 128),
             nn.ReLU(),
         )
-        self.dist = IndependentDist(128, stages, options)
+        self.dist = RNNDist(128, stages, options)
 
         self.decoder_input = nn.Sequential(
             nn.Linear(stages * options, 128),
@@ -172,3 +172,53 @@ class IndependentDist(nn.Module):
         thresholds = torch.rand_like(probs[..., :1])
         samples = torch.sum((torch.cumsum(probs, dim=-1) < thresholds).long(), dim=-1)
         return samples
+
+
+class RNNDist(nn.Module):
+    def __init__(self, dim, stages, options):
+        super().__init__()
+        self.stages = stages
+        self.options = options
+        self.rnn = nn.GRU(dim, dim, 2)
+        self.embedding = nn.Embedding(options, dim)
+        self.init_state = nn.Parameter(torch.randn(self.rnn.num_layers, 1, dim))
+        self.output_layer = nn.Linear(dim, options)
+
+    def nll(self, inputs, latents):
+        # [N x T x C]
+        embedded = self.embedding(latents)
+        embedded = torch.cat([torch.zeros_like(embedded[:, :1]), embedded[:, :-1]], dim=1)
+
+        # [T x N x C]
+        input_seq = (embedded + inputs[:, None]).permute(1, 0, 2)
+
+        hidden = self.init_state.repeat(1, inputs.shape[0], 1)
+        output_seq, _ = self.rnn(input_seq, hidden)
+
+        # [N x T x C]
+        output_seq = output_seq.permute(1, 0, 2)
+        # [N x T x options]
+        output_logits = self.output_layer(output_seq)
+        output_logs = F.log_softmax(output_logits, dim=-1)
+        # [N x options x T]
+        output_logs = output_logs.permute(0, 2, 1)
+
+        return F.nll_loss(output_logs, latents)
+
+    def discretize(self, inputs, sample=False):
+        latents = []
+        hidden = self.init_state.repeat(1, inputs.shape[0], 1)
+        next_inputs = inputs[None]
+        for _ in range(self.stages):
+            outputs, hidden = self.rnn(next_inputs, hidden)
+            logits = self.output_layer(outputs[0])
+            if sample:
+                probs = F.softmax(logits, dim=-1)
+                thresholds = torch.rand_like(probs[0, :1])
+                samples = torch.sum((torch.cumsum(probs, dim=-1) < thresholds).long(), dim=-1)
+            else:
+                samples = torch.argmax(logits, dim=-1)
+            embedded = self.embedding(samples)
+            next_inputs = (inputs + embedded)[None]
+            latents.append(samples)
+        return torch.stack(latents, dim=1)
