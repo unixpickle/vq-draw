@@ -277,14 +277,16 @@ class Distiller(ABC):
                 test_latents, test_recon, _ = self.vqdraw(test_batch)
 
             terms = {}
-            terms['enc_train'], terms['dec_train'] = self.distill_losses(train_latents, train_recon)
+            terms['enc_train'], terms['dec_train'] = self.distill_losses(
+                    train_batch, train_latents, train_recon)
             terms['enc_sample'], terms['dec_sample'] = self.distill_losses(
-                sample_latents, sample_recon)
+                sample_recon, sample_latents, sample_recon)
             loss = (self.args.train_weight * sum(v for k, v in terms.items() if 'train' in k) +
                     self.args.sample_weight * sum(v for k, v in terms.items() if 'sample' in k))
 
             with torch.no_grad():
-                terms['enc_test'], terms['dec_test'] = self.distill_losses(test_latents, test_recon)
+                terms['enc_test'], terms['dec_test'] = self.distill_losses(
+                        test_batch, test_latents, test_recon)
                 terms['e2e_test'] = self.e2e_loss(test_batch)
                 terms['e2e_train'] = self.e2e_loss(train_batch)
                 terms['e2e_sample'] = self.e2e_loss(sample_recon)
@@ -299,12 +301,12 @@ class Distiller(ABC):
             if not i % self.args.save_interval:
                 self.save()
 
-    def distill_losses(self, latents, targets):
+    def distill_losses(self, inputs, latents, targets):
         """
         Compute a tuple of (enc, dec) losses for the
         distilled model.
         """
-        latent_loss = self.model.encode_nll(targets, latents)
+        latent_loss = self.model.encode_nll(inputs, latents)
         target_pred = self.model.decode(latents)
         target_loss = self.vqdraw.loss_fn(target_pred, targets)
         return (latent_loss, target_loss)
