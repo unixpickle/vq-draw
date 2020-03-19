@@ -265,12 +265,12 @@ class TextRefiner(ResidualRefiner):
 
         def block():
             return Sequential(
-                nn.TransformerEncoderLayer(128, 4, dim_feedforward=512, dropout=0),
-                CondChannelMask(max_stages, 128),
+                nn.TransformerEncoderLayer(512, 8, dim_feedforward=2048, dropout=0),
+                CondChannelMask(max_stages, 512),
             )
 
         self.embed = nn.Sequential(
-            nn.Conv1d(vocab_size, 128, 1),
+            nn.Conv1d(vocab_size, 512, 1),
             nn.ReLU(),
         )
         self.pos_enc = nn.Parameter(torch.randn(1, 128, seq_len))
@@ -281,7 +281,7 @@ class TextRefiner(ResidualRefiner):
             block(),
             block(),
             block(),
-            nn.Conv1d(128, 128, 1),
+            nn.Conv1d(512, 128, 1),
             nn.ReLU(),
             nn.Conv1d(128, num_options * vocab_size, 1),
         )
