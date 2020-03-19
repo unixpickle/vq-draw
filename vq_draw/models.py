@@ -263,19 +263,9 @@ class TextRefiner(ResidualRefiner):
 
         self.output_scale = nn.Parameter(torch.tensor(0.1))
 
-        def res_block(dilation):
-            return ResidualBlock(
-                nn.ReLU(),
-                nn.LayerNorm((128, seq_len)),
-                nn.Conv1d(128, 128, 3, stride=1, padding=dilation, dilation=dilation),
-                CondChannelMask(max_stages, 128),
-                nn.ReLU(),
-                nn.LayerNorm((128, seq_len)),
-                nn.Conv1d(128, 512, 1),
-                CondChannelMask(max_stages, 512),
-                nn.ReLU(),
-                nn.LayerNorm((512, seq_len)),
-                nn.Conv1d(512, 128, 1),
+        def block():
+            return Sequential(
+                nn.TransformerEncoderLayer(128, 4, dim_feedforward=512, dropout=0),
                 CondChannelMask(max_stages, 128),
             )
 
@@ -285,20 +275,12 @@ class TextRefiner(ResidualRefiner):
         )
         self.pos_enc = nn.Parameter(torch.randn(1, 128, seq_len))
         self.layers = Sequential(
-            res_block(1),
-            res_block(2),
-            res_block(4),
-            res_block(8),
-            res_block(16),
-            res_block(32),
-            res_block(1),
-            res_block(2),
-            res_block(4),
-            res_block(8),
-            res_block(16),
-            res_block(32),
-            nn.ReLU(),
-            nn.LayerNorm((128, seq_len)),
+            block(),
+            block(),
+            block(),
+            block(),
+            block(),
+            block(),
             nn.Conv1d(128, 128, 1),
             nn.ReLU(),
             nn.Conv1d(128, num_options * vocab_size, 1),
