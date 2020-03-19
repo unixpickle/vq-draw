@@ -273,7 +273,7 @@ class TextRefiner(ResidualRefiner):
             nn.Conv1d(vocab_size, 512, 1),
             nn.ReLU(),
         )
-        self.pos_enc = nn.Parameter(torch.randn(1, 128, seq_len))
+        self.pos_enc = nn.Parameter(torch.randn(1, 512, seq_len))
         self.layers = Sequential(
             block(),
             block(),
