@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.utils.checkpoint
 
-from .blocks import ResidualBlock, CondChannelMask, Sequential, CondModule
+from .blocks import ResidualBlock, CondChannelMask, Sequential, CondModule, TransformerEncoderLayer
 from .refiner import ResidualRefiner
 
 
@@ -265,7 +265,7 @@ class TextRefiner(ResidualRefiner):
 
         def block():
             return Sequential(
-                nn.TransformerEncoderLayer(512, 8, dim_feedforward=2048, dropout=0),
+                TransformerEncoderLayer(512, 8, dim_feedforward=2048, dropout=0),
                 CondChannelMask(max_stages, 512),
             )
 

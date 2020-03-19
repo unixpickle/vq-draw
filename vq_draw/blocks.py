@@ -69,3 +69,8 @@ class ResidualBlock(Sequential):
 
     def forward(self, x, stage):
         return super().forward(x, stage) + x
+
+
+class TransformerEncoderLayer(nn.TransformerEncoderLayer):
+    def forward(self, x):
+        return super().forward(x.permute(0, 2, 1)).permute(0, 2, 1)
