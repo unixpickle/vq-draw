@@ -4,7 +4,8 @@ import torch
 import torch.nn as nn
 import torch.utils.checkpoint
 
-from .blocks import ResidualBlock, CondChannelMask, Sequential, CondModule, TransformerEncoderLayer
+from .blocks import (ResidualBlock, CondChannelMask, Sequential, CondModule,
+                     PositionalEncoding, TransformerEncoderLayer)
 from .refiner import ResidualRefiner
 
 
@@ -266,14 +267,14 @@ class TextRefiner(ResidualRefiner):
         def block():
             return Sequential(
                 TransformerEncoderLayer(512, 8, dim_feedforward=2048, dropout=0),
-                CondChannelMask(max_stages, 512),
+                CondChannelMask(max_stages, 512, ones_init=True),
             )
 
         self.embed = nn.Sequential(
             nn.Conv1d(vocab_size, 512, 1),
             nn.ReLU(),
         )
-        self.pos_enc = nn.Parameter(torch.randn(1, 512, seq_len))
+        self.pos_enc = PositionalEncoding(seq_len, 512)
         self.layers = Sequential(
             block(),
             block(),
@@ -292,7 +293,7 @@ class TextRefiner(ResidualRefiner):
         out = torch.softmax(x, dim=-1) * math.sqrt(x.shape[-1])
         out = out.permute(0, 2, 1)
         out = self.embed(out)
-        out = out + self.pos_enc
+        out = self.pos_enc(out)
         out = self.layers(out, stage)
         out = out.view(x.shape[0], self.num_options, self.vocab_size, self.seq_len)
         out = out.permute(0, 1, 3, 2).contiguous()

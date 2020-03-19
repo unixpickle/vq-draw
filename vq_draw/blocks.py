@@ -1,5 +1,7 @@
 from abc import abstractmethod
+import math
 
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -50,9 +52,12 @@ class CondChannelMask(CondBlock):
     stage-conditional vector.
     """
 
-    def __init__(self, num_stages, channels):
+    def __init__(self, num_stages, channels, ones_init=False):
         super().__init__()
-        self.embeddings = nn.Parameter(torch.randn(num_stages, channels))
+        if ones_init:
+            self.embeddings = nn.Parameter(torch.ones(num_stages, channels))
+        else:
+            self.embeddings = nn.Parameter(torch.randn(num_stages, channels))
 
     def forward(self, x, stage):
         scale = self.embeddings[None, stage]
@@ -69,6 +74,32 @@ class ResidualBlock(Sequential):
 
     def forward(self, x, stage):
         return super().forward(x, stage) + x
+
+
+class PositionalEncoding(nn.Module):
+    def __init__(self, seq_len, dim, randomize=False):
+        super().__init__()
+
+        if randomize:
+            self.pos_enc = nn.Parameter(torch.randn(1, dim, seq_len))
+            return
+
+        indices = np.arange(seq_len)[None, None].astype('float32')
+        coeffs = np.zeros([1, dim, 1], dtype='float32')
+
+        min_freq = 1 / (10 * seq_len)
+        max_freq = 1
+        for i in range(0, dim-1, 2):
+            frac = i / dim
+            freq = frac * max_freq + (1 - frac) * min_freq
+            coeffs[0, i] = freq
+        coeffs *= math.pi * 2
+
+        pos_enc = torch.from_numpy(coeffs * indices).float()
+        self.pos_enc = nn.Parameter(pos_enc)
+
+    def forward(self, x):
+        return x + self.pos_enc
 
 
 class TransformerEncoderLayer(nn.TransformerEncoderLayer):
