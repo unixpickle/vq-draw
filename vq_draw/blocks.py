@@ -79,24 +79,23 @@ class ResidualBlock(Sequential):
 class PositionalEncoding(nn.Module):
     def __init__(self, seq_len, dim, randomize=False):
         super().__init__()
+        assert dim % 2 == 0, 'cannot encode position with odd dimension'
 
         if randomize:
             self.pos_enc = nn.Parameter(torch.randn(1, dim, seq_len))
             return
 
         indices = np.arange(seq_len)[None, None].astype('float32')
-        coeffs = np.zeros([1, dim, 1], dtype='float32')
 
+        fracs = np.arange(dim // 2)[None, :, None].astype('float32') / (dim / 2)
         min_freq = 1 / (10 * seq_len)
         max_freq = 1
-        for i in range(0, dim-1, 2):
-            frac = i / dim
-            freq = frac * max_freq + (1 - frac) * min_freq
-            coeffs[0, i] = freq
-        coeffs *= math.pi * 2
+        freqs = fracs * max_freq + (1 - fracs) * min_freq
+        freqs *= math.pi * 2
 
-        pos_enc = torch.from_numpy(coeffs * indices).float()
-        self.pos_enc = nn.Parameter(pos_enc)
+        sin_args = torch.from_numpy(freqs * indices).float()
+        waves = torch.cat([torch.sin(sin_args), torch.cos(sin_args)], dim=1)
+        self.pos_enc = nn.Parameter(waves)
 
     def forward(self, x):
         return x + self.pos_enc
