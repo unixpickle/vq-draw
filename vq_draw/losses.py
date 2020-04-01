@@ -3,6 +3,7 @@ import math
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class LossFunc(nn.Module):
@@ -62,4 +63,15 @@ class SoftmaxLoss(LossFunc):
         y = y.repeat(1, x.shape[1], *([1] * (len(y.shape) - 2)))
         log_probs = torch.log_softmax(x, dim=-1)
         losses = -torch.gather(log_probs, -1, y[..., None])
+        return torch.mean(losses, dim=tuple(range(2, len(x.shape))))
+
+
+class BCELoss(LossFunc):
+    def forward(self, x, y):
+        y_bcast = y + torch.zeros_like(x)
+        return F.binary_cross_entropy_with_logits(x, y_bcast)
+
+    def loss_grid(self, x, y):
+        y_bcast = y + torch.zeros_like(x)
+        losses = F.binary_cross_entropy_with_logits(x, y_bcast, reduction='none')
         return torch.mean(losses, dim=tuple(range(2, len(x.shape))))

@@ -315,3 +315,62 @@ class TextRefiner(ResidualRefiner):
         out = out.view(x.shape[0], self.num_options, self.vocab_size, self.seq_len)
         out = out.permute(0, 1, 3, 2).contiguous()
         return out * self.output_scale
+
+
+class ModelNetRefiner(ResidualRefiner):
+    """
+    A refiner module appropriate for the voxelized
+    ModelNet dataset implemented by the modelnet module.
+    """
+
+    def __init__(self, num_options, max_stages):
+        super().__init__()
+        self.num_options = num_options
+        self.output_scale = nn.Parameter(torch.tensor(0.1))
+
+        def res_block():
+            return ResidualBlock(
+                nn.ReLU(),
+                nn.GroupNorm(4, 64),
+                nn.Conv3d(64, 64, 3, padding=1),
+                CondChannelMask(max_stages, 64),
+                nn.ReLU(),
+                nn.GroupNorm(4, 64),
+                nn.Conv3d(64, 256, 1),
+                CondChannelMask(max_stages, 256),
+                nn.ReLU(),
+                nn.GroupNorm(16, 256),
+                nn.Conv3d(256, 64, 1),
+                CondChannelMask(max_stages, 64),
+            )
+
+        self.layers = Sequential(
+            # Reduce spatial resolution.
+            nn.Conv3d(1, 32, 5, stride=2, padding=2),
+            nn.ReLU(),
+            nn.GroupNorm(2, 32),
+            nn.Conv3d(32, 64, 5, stride=2, padding=2),
+            nn.ReLU(),
+            nn.GroupNorm(4, 64),
+
+            res_block(),
+            res_block(),
+
+            # Increase spatial resolution back to original.
+            nn.ConvTranspose3d(64, 32, 4, stride=2, padding=1),
+            CondChannelMask(max_stages, 32),
+            nn.ReLU(),
+            nn.ConvTranspose3d(32, 32, 4, stride=2, padding=1),
+            CondChannelMask(max_stages, 32),
+            nn.ReLU(),
+
+            # Generate option outputs.
+            nn.Conv3d(32, 32, 3, padding=1),
+            CondChannelMask(max_stages, 32),
+            nn.ReLU(),
+            nn.Conv3d(32, self.num_options, 3, padding=1),
+        )
+
+    def residuals(self, x, stage):
+        x = self.layers(x, stage) * self.output_scale
+        return x.view(x.shape[0], self.num_options, 1, *x.shape[2:])
