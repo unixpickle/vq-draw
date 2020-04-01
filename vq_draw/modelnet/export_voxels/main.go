@@ -69,16 +69,6 @@ func ConvertModel(inPath, outPath string, numVariations, gridSize int) error {
 	}
 	mesh := model3d.NewMeshTriangles(triangles)
 
-	// The meshes are not always manifold, in the sense
-	// that they may have duplicate triangles, holes, etc.
-	//
-	// They may also have bad normals, self-intersections,
-	// etc., but it is not obvious how to deal with that.
-	manifold := !mesh.NeedsRepair() && len(mesh.SingularVertices()) == 0
-	if !manifold {
-		log.Printf("Warning: mesh is non-manifold!")
-	}
-
 	outBase := outPath[:len(outPath)-len(filepath.Ext(outPath))]
 	for i := 0; i < numVariations; i++ {
 		outPath := fmt.Sprintf("%s-%d.npz", outBase, i)
@@ -86,7 +76,7 @@ func ConvertModel(inPath, outPath string, numVariations, gridSize int) error {
 		if i != 0 {
 			saveMesh = TransformMesh(saveMesh)
 		}
-		voxels := CreateVoxels(saveMesh, gridSize, manifold)
+		voxels := CreateVoxels(saveMesh, gridSize)
 		if err := SaveNumpy(outPath, gridSize, voxels); err != nil {
 			return err
 		}
@@ -113,14 +103,8 @@ func TransformMesh(mesh *model3d.Mesh) *model3d.Mesh {
 	return mesh.MapCoords(transform.Apply)
 }
 
-func CreateVoxels(mesh *model3d.Mesh, gridSize int, manifold bool) []byte {
-	collider := model3d.MeshToCollider(mesh)
-	var solid model3d.Solid
-	if manifold {
-		solid = model3d.NewColliderSolid(collider)
-	} else {
-		solid = &NonManifoldSolid{collider}
-	}
+func CreateVoxels(mesh *model3d.Mesh, gridSize int) []byte {
+	solid := &NonManifoldSolid{model3d.MeshToCollider(mesh)}
 
 	sizes := solid.Max().Sub(solid.Min())
 	size := math.Max(math.Max(sizes.X, sizes.Y), sizes.Z)
