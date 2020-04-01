@@ -11,9 +11,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/unixpickle/model3d"
-
 	"github.com/unixpickle/essentials"
+	"github.com/unixpickle/model3d"
 )
 
 func main() {
