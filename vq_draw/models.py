@@ -52,7 +52,7 @@ class CIFARRefiner(ResidualRefiner):
             res_block(),
             res_block(),
 
-            # Increase spacial resolution back to original.
+            # Increase spatial resolution back to original.
             nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1),
             CondChannelMask(max_stages, 128),
             nn.ReLU(),
@@ -121,7 +121,7 @@ class CelebARefiner(ResidualRefiner):
             res_block(),
             res_block(),
 
-            # Increase spacial resolution back to original.
+            # Increase spatial resolution back to original.
             nn.ConvTranspose2d(128, 128, 4, stride=2, padding=1),
             CondChannelMask(max_stages, 128),
             nn.ReLU(),
