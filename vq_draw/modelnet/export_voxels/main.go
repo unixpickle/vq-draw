@@ -71,6 +71,9 @@ func ConvertModel(inPath, outPath string, numVariations, gridSize int) error {
 
 	// The meshes are not always manifold, in the sense
 	// that they may have duplicate triangles, holes, etc.
+	//
+	// They may also have bad normals, self-intersections,
+	// etc., but it is not obvious how to deal with that.
 	manifold := !mesh.NeedsRepair() && len(mesh.SingularVertices()) == 0
 	if !manifold {
 		log.Printf("Warning: mesh is non-manifold!")
@@ -127,9 +130,9 @@ func CreateVoxels(mesh *model3d.Mesh, gridSize int, manifold bool) []byte {
 	cellSize := size / float64(gridSize)
 
 	var data []byte
-	for z := 0; z < gridSize; z++ {
+	for x := 0; x < gridSize; x++ {
 		for y := 0; y < gridSize; y++ {
-			for x := 0; x < gridSize; x++ {
+			for z := 0; z < gridSize; z++ {
 				idxCoord := model3d.Coord3D{X: float64(x), Y: float64(y), Z: float64(z)}
 				coord := origin.Add(idxCoord.Add(unit.Scale(0.5)).Scale(cellSize))
 				if solid.Contains(coord) {
@@ -167,8 +170,9 @@ func SaveNumpy(path string, gridSize int, data []byte) error {
 func EncodeNumpy(gridSize int, data []byte) []byte {
 	header := "\x93NUMPY\x01\x00\x76\x00{'descr': '|b1', 'fortran_order': False, 'shape': ("
 	header += fmt.Sprintf("%d, %d, %d)}", gridSize, gridSize, gridSize)
-	for len(header) < 0x80 {
+	for len(header) < 0x80-1 {
 		header += " "
 	}
+	header += "\n"
 	return append([]byte(header), data...)
 }
