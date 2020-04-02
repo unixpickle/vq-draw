@@ -17,5 +17,6 @@ Indices are ordered (x, y, z) with respect to the original
 """
 
 from .dataset import ModelNetDataset
+from .render import VoxelRenderer
 
-__all__ = ['ModelNetDataset']
+__all__ = ['ModelNetDataset', 'VoxelRenderer']

@@ -1,21 +1,23 @@
 import math
+import time
 
-import matplotlib.pyplot as plt
-
-# Imported just for the pyplot plugin.
-from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
-
-import numpy as np
 import torch
 
 from vq_draw import BCELoss, Encoder, ModelNetRefiner, SegmentRefiner, Trainer
-from vq_draw.modelnet import ModelNetDataset
+from vq_draw.modelnet import ModelNetDataset, VoxelRenderer
 
 GRID_SIZE = 64
 SAVE_GRID_SIZE = 2
 
 
 class ModelNetTrainer(Trainer):
+    def __init__(self):
+        super().__init__()
+        print('=> creating renderer...')
+        start_time = time.time()
+        self.renderer = VoxelRenderer(GRID_SIZE)
+        print('=> created renderer in %.1f seconds.' % (time.time() - start_time))
+
     def arg_parser(self):
         res = super().arg_parser()
         res.add_argument('data_dir', type=str)
@@ -64,7 +66,8 @@ class ModelNetTrainer(Trainer):
         data = self.gather_samples(self.test_loader, SAVE_GRID_SIZE ** 2).to(self.device)
         with torch.no_grad():
             recons = self.model.reconstruct(data)
-        img = torch.cat([data, recons], dim=-1)
+        img = torch.cat([data, recons], dim=1)
+        img = img.view(SAVE_GRID_SIZE, SAVE_GRID_SIZE*2, GRID_SIZE, GRID_SIZE, GRID_SIZE)
         self.save_grid(img, 'renderings.png')
 
     def save_samples(self):
@@ -72,20 +75,12 @@ class ModelNetTrainer(Trainer):
                                 size=(SAVE_GRID_SIZE**2, self.model.num_stages))
         with torch.no_grad():
             tensor = self.model.decode(latents.to(self.device))
+        tensor = tensor.view(SAVE_GRID_SIZE, SAVE_GRID_SIZE, GRID_SIZE, GRID_SIZE, GRID_SIZE)
         self.save_grid(tensor, 'samples.png')
 
     def save_grid(self, grid, path):
-        print('starting render...')
-        grid = grid.view(SAVE_GRID_SIZE, -1, GRID_SIZE, GRID_SIZE)
         grid = (grid > 0).cpu().numpy().astype('bool')
-        grid = np.concatenate(grid, axis=1)
-        print('grid shape', grid.shape)
-        fig = plt.figure()
-        ax = fig.gca(projection='3d')
-        ax.voxels(grid)
-        plt.savefig(path)
-        plt.close()
-        print('saving grid...')
+        self.renderer.render_grid_to_file(path, grid)
 
     def cycle_batches(self, loader):
         # Override because we do not yield class labels.
