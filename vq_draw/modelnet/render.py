@@ -13,7 +13,7 @@ class VoxelRenderer:
     grids can be rendered without casting rays.
     """
 
-    def __init__(self, grid_size, image_size=100):
+    def __init__(self, grid_size, image_size=200):
         if grid_size != 2 ** int(round(math.log2(grid_size))):
             raise ValueError('grid_size must be a power of 2')
         self.grid_size = grid_size
@@ -49,7 +49,7 @@ class VoxelRenderer:
         Image.fromarray(int_img).save(out_path)
 
     def _camera_rays(self):
-        origin = np.array([3, 3, 3], dtype='float64')
+        origin = np.array([2, 2, 2], dtype='float64')
 
         z_direction = -origin
         x_direction = np.array([-origin[1], origin[0], 0])
@@ -64,48 +64,64 @@ class VoxelRenderer:
             rel_y = y_direction * (y / (self.image_size / 2) - 1)
             for x in range(self.image_size):
                 rel_x = x_direction * (x / (self.image_size / 2) - 1)
-                yield Ray(origin, rel_x + rel_y + z_direction)
+                yield Ray(tuple(origin), tuple(rel_x + rel_y + z_direction))
 
     def _bounding_volume_collisions(self, vox_origin, vox_size, ray):
-        min_coord = (np.array(vox_origin, dtype='float64') / self.grid_size) - ray.origin
-        max_coord = min_coord + vox_size / self.grid_size
-        t1 = min_coord / ray.direction
-        t2 = max_coord / ray.direction
-        t_mins, t_maxes = np.min([t1, t2], axis=0), np.max([t1, t2], axis=0)
-        t_min = np.max(t_mins)
-        t_max = np.min(t_maxes)
+        scale = 1 / self.grid_size
+        box_size = vox_size * scale
+        min_coord = (vox_origin[0] * scale - ray.origin[0],
+                     vox_origin[1] * scale - ray.origin[1],
+                     vox_origin[2] * scale - ray.origin[2])
+        max_coord = (min_coord[0] + box_size,
+                     min_coord[1] + box_size,
+                     min_coord[2] + box_size)
 
-        # Most of the time, we will not collide with the box.
-        # Also theoretically possible to be inside the box.
-        if t_min >= t_max or t_min < 0:
-            return []
+        t_min, t_max = -100000.0, 100000.0
+        for c1, c2, ray_dir in zip(min_coord, max_coord, ray.direction):
+            t1 = c1 / ray_dir
+            t2 = c2 / ray_dir
+            if t1 > t2:
+                t1, t2 = t2, t1
+            t_min = max(t_min, t1)
+            t_max = min(t_max, t2)
+            if t_min >= t_max or t_min < 0:
+                return []
 
         if vox_size > 1:
             half_size = vox_size // 2
             collisions = []
             for x in range(2):
+                new_x = vox_origin[0] + half_size * x
                 for y in range(2):
+                    new_y = vox_origin[1] + half_size * y
                     for z in range(2):
-                        sub_origin = tuple(o + half_size*d for o, d in zip(vox_origin, (x, y, z)))
+                        new_z = vox_origin[2] + half_size * z
+                        sub_origin = (new_x, new_y, new_z)
                         sub_coll = self._bounding_volume_collisions(sub_origin, half_size, ray)
                         collisions.extend(sub_coll)
             return collisions
 
-        point = ray.direction * t_min
-        approx_normal = point - (min_coord + max_coord) / 2
-        max_component = np.argmax(np.abs(approx_normal))
-        return [RayCollision(t_min, vox_origin, abs(ray.direction[max_component]))]
+        # Figure out the cosine for the side of the box
+        # the ray collided with.
+        # Assume the camera is the light source.
+        max_incidence = 0
+        max_diff = 0
+        for ray_dir, min_val, max_val in zip(ray.direction, min_coord, max_coord):
+            p = ray_dir * t_min
+            c = (min_val + max_val) / 2
+            diff = abs(p - c)
+            if diff > max_diff:
+                max_diff = diff
+                max_incidence = abs(ray_dir)
+
+        return [RayCollision(t_min, vox_origin, max_incidence)]
 
 
 class Ray:
     def __init__(self, origin, direction):
         self.origin = origin
-        self.direction = direction.copy()
-
-        # Avoid divisions by zero.
-        for i, x in enumerate(direction):
-            if abs(x) < 1e-8:
-                direction[i] = 1e-8
+        # Prevent epsilon directions.
+        self.direction = tuple(x if abs(x) > 1e-8 else 1e-8 for x in direction)
 
 
 class RayCollision:
