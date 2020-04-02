@@ -64,7 +64,12 @@ class VoxelRenderer:
             rel_y = y_direction * (y / (self.image_size / 2) - 1)
             for x in range(self.image_size):
                 rel_x = x_direction * (x / (self.image_size / 2) - 1)
-                yield Ray(tuple(origin), tuple(rel_x + rel_y + z_direction))
+                ray_dir = rel_x + rel_y + z_direction
+
+                # Normalize to get proper lighting.
+                ray_dir /= np.linalg.norm(ray_dir)
+
+                yield Ray(tuple(origin), tuple(ray_dir))
 
     def _bounding_volume_collisions(self, vox_origin, vox_size, ray):
         scale = 1 / self.grid_size
