@@ -103,7 +103,8 @@ func TransformMesh(mesh *model3d.Mesh) *model3d.Mesh {
 }
 
 func CreateVoxels(mesh *model3d.Mesh, gridSize int) []byte {
-	solid := &NonManifoldSolid{model3d.MeshToCollider(mesh)}
+	collider := model3d.MeshToCollider(mesh)
+	solid := &NonManifoldSolid{collider}
 
 	sizes := solid.Max().Sub(solid.Min())
 	size := math.Max(math.Max(sizes.X, sizes.Y), sizes.Z)
@@ -111,6 +112,7 @@ func CreateVoxels(mesh *model3d.Mesh, gridSize int) []byte {
 	unit := model3d.Coord3D{X: 1, Y: 1, Z: 1}
 	origin := sizes.Sub(unit.Scale(size)).Scale(0.5).Add(solid.Min())
 	cellSize := size / float64(gridSize)
+	nearbyRadius := cellSize / 2
 
 	var data []byte
 	for x := 0; x < gridSize; x++ {
@@ -118,7 +120,7 @@ func CreateVoxels(mesh *model3d.Mesh, gridSize int) []byte {
 			for z := 0; z < gridSize; z++ {
 				idxCoord := model3d.Coord3D{X: float64(x), Y: float64(y), Z: float64(z)}
 				coord := origin.Add(idxCoord.Add(unit.Scale(0.5)).Scale(cellSize))
-				if solid.Contains(coord) {
+				if solid.Contains(coord) || collider.SphereCollision(coord, nearbyRadius) {
 					data = append(data, 1)
 				} else {
 					data = append(data, 0)
