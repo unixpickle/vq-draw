@@ -86,7 +86,7 @@ class ModelNetTrainer(Trainer):
         # Override because we do not yield class labels.
         while True:
             for batch in loader:
-                yield batch
+                yield batch.to(self.device)
 
 
 if __name__ == '__main__':
