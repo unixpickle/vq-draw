@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math"
 	"os"
 	"path/filepath"
 
@@ -19,7 +18,7 @@ func main() {
 	var numVariations int
 	var gridSize int
 
-	flag.IntVar(&numVariations, "variations", 4, "number of random perturbations to produce")
+	flag.IntVar(&numVariations, "variations", 1, "number of random perturbations to produce")
 	flag.IntVar(&gridSize, "grid-size", 64, "number of voxels along each dimension")
 	flag.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage:", os.Args[0], "[flags] <input_dir> <output_dir>")
@@ -75,7 +74,7 @@ func ConvertModel(inPath, outPath string, numVariations, gridSize int) error {
 		if i != 0 {
 			saveMesh = TransformMesh(saveMesh)
 		}
-		voxels := CreateVoxels(saveMesh, gridSize)
+		voxels := NewVoxelConnector(saveMesh, gridSize).Voxels()
 		if err := SaveNumpy(outPath, gridSize, voxels); err != nil {
 			return err
 		}
@@ -100,36 +99,6 @@ func TransformMesh(mesh *model3d.Mesh) *model3d.Mesh {
 	}
 
 	return mesh.MapCoords(transform.Apply)
-}
-
-func CreateVoxels(mesh *model3d.Mesh, gridSize int) []byte {
-	collider := model3d.MeshToCollider(mesh)
-	solid := &NonManifoldSolid{collider}
-
-	sizes := solid.Max().Sub(solid.Min())
-	size := math.Max(math.Max(sizes.X, sizes.Y), sizes.Z)
-
-	unit := model3d.Coord3D{X: 1, Y: 1, Z: 1}
-	origin := sizes.Sub(unit.Scale(size)).Scale(0.5).Add(solid.Min())
-	cellSize := size / float64(gridSize)
-	nearbyRadius := cellSize / 2
-
-	var data []byte
-	for x := 0; x < gridSize; x++ {
-		for y := 0; y < gridSize; y++ {
-			for z := 0; z < gridSize; z++ {
-				idxCoord := model3d.Coord3D{X: float64(x), Y: float64(y), Z: float64(z)}
-				coord := origin.Add(idxCoord.Add(unit.Scale(0.5)).Scale(cellSize))
-				if solid.Contains(coord) || collider.SphereCollision(coord, nearbyRadius) {
-					data = append(data, 1)
-				} else {
-					data = append(data, 0)
-				}
-			}
-		}
-	}
-
-	return data
 }
 
 func SaveNumpy(path string, gridSize int, data []byte) error {
