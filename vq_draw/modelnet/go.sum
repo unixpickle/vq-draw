@@ -1,0 +1,7 @@
+github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
+github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
+github.com/unixpickle/essentials v1.0.1/go.mod h1:dQ1idvqrgrDgub3mfckQm7osVPzT3u9rB6NK/LEhmtQ=
+github.com/unixpickle/essentials v1.1.0 h1:kJ/mU3MfmmSfuU8zyplwkup60lKV9+ucqZC+hR1GgVU=
+github.com/unixpickle/essentials v1.1.0/go.mod h1:dQ1idvqrgrDgub3mfckQm7osVPzT3u9rB6NK/LEhmtQ=
+github.com/unixpickle/model3d v0.1.1 h1:UK3GlZPOfdFyUctwYsfrdAnqFI94It7deyqP/gfD0GQ=
+github.com/unixpickle/model3d v0.1.1/go.mod h1:/jD5uEOZVtoeyF0K1t9rCFsturMfh/gdj3fX/DVV360=
