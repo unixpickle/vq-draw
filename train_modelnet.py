@@ -41,7 +41,7 @@ class ModelNetTrainer(Trainer):
 
     def create_datasets(self):
         # Taken from pytorch MNIST demo.
-        kwargs = {'num_workers': 1, 'pin_memory': True} if self.use_cuda else {}
+        kwargs = {'num_workers': 0, 'pin_memory': True} if self.use_cuda else {}
         train_loader = torch.utils.data.DataLoader(
             ModelNetDataset(self.args.data_dir, split='train'),
             batch_size=self.args.batch, shuffle=True, **kwargs)

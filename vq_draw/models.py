@@ -355,6 +355,9 @@ class ModelNetRefiner(ResidualRefiner):
 
             res_block(),
             res_block(),
+            res_block(),
+            res_block(),
+            nn.GroupNorm(4, 64),
 
             # Increase spatial resolution back to original.
             nn.ConvTranspose3d(64, 32, 4, stride=2, padding=1),
