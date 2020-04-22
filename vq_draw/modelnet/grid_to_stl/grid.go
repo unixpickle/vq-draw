@@ -65,7 +65,7 @@ func (v *VoxelGrid) Contains(c model3d.Coord3D) bool {
 // at the given point.
 func (v *VoxelGrid) Interp(c model3d.Coord3D) float64 {
 	// Put the grid inside the unit cube.
-	c = c.Scale(1 / float64(v.Size))
+	c = c.Scale(float64(v.Size))
 
 	xs, xFracs := roundedCoords(c.X)
 	ys, yFracs := roundedCoords(c.Y)

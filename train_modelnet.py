@@ -1,4 +1,6 @@
+import json
 import math
+import os
 import time
 
 import torch
@@ -20,6 +22,7 @@ class ModelNetTrainer(Trainer):
 
     def arg_parser(self):
         res = super().arg_parser()
+        res.add_argument('--save-grids', action='store_true')
         res.add_argument('data_dir', type=str)
         return res
 
@@ -79,6 +82,17 @@ class ModelNetTrainer(Trainer):
         self.save_grid(tensor, 'samples.png')
 
     def save_grid(self, grid, path):
+        # Save JSON files for grid_to_stl
+        if self.args.save_grids:
+            logit_grid = torch.sigmoid(grid).cpu().numpy().tolist()
+            dir_path = path + '_grids'
+            if not os.path.exists(dir_path):
+                os.mkdir(dir_path)
+            for i, row in enumerate(logit_grid):
+                for j, col in enumerate(row):
+                    with open(os.path.join(dir_path, '%d_%d.json' % (i, j)), 'w+') as f:
+                        json.dump(col, f)
+
         grid = (grid > 0).cpu().numpy().astype('bool')
         self.renderer.render_grid_to_file(path, grid)
 
